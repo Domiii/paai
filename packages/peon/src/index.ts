@@ -1,33 +1,327 @@
-import { ChatOpenAI } from "@langchain/openai";
+import fs from "fs/promises";
+import * as path from "path";
+import { glob } from "glob";
+import ignore, { Ignore } from "ignore";
+
 import { ChatAnthropic } from "@langchain/anthropic";
-import { createReactAgent, AgentExecutor } from "langchain/agents";
-import { Tool } from "@langchain/core/tools";
-import { ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate } from "@langchain/core/prompts";
+import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
-import dotenv from 'dotenv';
+import {
+  ChatPromptTemplate,
+  HumanMessagePromptTemplate,
+  SystemMessagePromptTemplate,
+} from "@langchain/core/prompts";
+import {
+  ToolInterface,
+  ToolParams,
+  DynamicStructuredTool,
+  tool,
+  StructuredTool,
+} from "@langchain/core/tools";
+import { ChatOpenAI } from "@langchain/openai";
+import { AgentExecutor, createReactAgent } from "langchain/agents";
 
-// Load environment variables
-dotenv.config();
+import { z } from "zod";
 
-// Define ModelConfig interface
-interface ModelConfig {
+export interface ModelConfig {
   modelName: string;
   temperature?: number;
   maxTokens?: number;
 }
 
-// Define a custom tool
-class Calculator implements Tool {
-  name = "Calculator";
-  description = "Useful for performing arithmetic calculations";
+export class Workspace {
+  private _absolutePath: string;
+  private _label: string;
 
-  async call(input: string): Promise<string> {
-    try {
-      return eval(input).toString();
-    } catch (error) {
-      return "Error: Invalid arithmetic expression";
+  constructor(absolutePath: string, label: string) {
+    this._absolutePath = absolutePath;
+    this._label = label;
+  }
+
+  get absolutePath(): string {
+    return this._absolutePath;
+  }
+
+  get label(): string {
+    return this._label;
+  }
+
+  async resolveFile(relativePath: string): Promise<string> {
+    const fullPath = path.resolve(this._absolutePath, relativePath);
+
+    // Resolve the real path, following symlinks
+    const realFullPath = await fs.realpath(fullPath);
+    const realBasePath = await fs.realpath(this._absolutePath);
+    if (!realFullPath.startsWith(realBasePath)) {
+      throw new Error(
+        `Path traversal attack detected. ${fullPath} is not a child of ${this._absolutePath}`
+      );
+    }
+
+    // Check if the file exists and is readable
+    await fs.access(realFullPath, fs.constants.R_OK);
+    return realFullPath;
+  }
+
+  async enumerateFiles(globPattern: string): Promise<string[]> {
+    const options = {
+      cwd: this._absolutePath,
+      nodir: true,
+      dot: true,
+      absolute: true,
+      ignore: ["**/.git/**", "**/node_modules/**"],
+    };
+
+    const files = await glob(globPattern, options);
+
+    const ig = await this.getGitignoreRules();
+
+    const nonIgnoredFiles = files.filter((file) => {
+      const relativePath = path.relative(this._absolutePath, file);
+      return !ig.ignores(relativePath);
+    });
+
+    return nonIgnoredFiles.map((file) =>
+      path.relative(this._absolutePath, file)
+    );
+  }
+
+  private async getGitignoreRules(): Promise<Ignore> {
+    const ig = ignore();
+    let currentPath = this._absolutePath;
+
+    while (true) {
+      const gitignorePath = path.join(currentPath, ".gitignore");
+      let gitignoreContent = "";
+      try {
+        gitignoreContent = await fs.readFile(gitignorePath, "utf8");
+      } catch (error) {
+        // If .gitignore doesn't exist, we'll just continue
+      }
+
+      const gitignorePatterns = gitignoreContent
+        .split("\n")
+        .filter((line) => line.trim() && !line.startsWith("#"));
+      ig.add(gitignorePatterns);
+
+      const parentPath = path.dirname(currentPath);
+      if (parentPath === currentPath) {
+        // We've reached the root directory
+        break;
+      }
+      currentPath = parentPath;
+    }
+
+    return ig;
+  }
+}
+
+export class Workspaces {
+  private _workspaces = new Map<string, Workspace>();
+  private _currentWorkspaceId: string | undefined;
+
+  get currentWorkspace(): Workspace | undefined {
+    return this._currentWorkspaceId
+      ? this._workspaces.get(this._currentWorkspaceId)
+      : undefined;
+  }
+
+  addWorkspace(fpath: string): void {
+    const label = path.basename(fpath);
+    if (this._workspaces.has(label)) {
+      throw new Error(
+        `NYI: Workspace label "${label}" at "${path}" already exists. Need to implement a unique label generation strategy.`
+      );
+    }
+    const workspace = new Workspace(fpath, label);
+    this._workspaces.set(label, workspace);
+  }
+
+  get workspaces(): Map<string, Workspace> {
+    return this._workspaces;
+  }
+
+  get currentWorkspaceId(): string | undefined {
+    return this._currentWorkspaceId;
+  }
+
+  set currentWorkspaceId(id: string | undefined) {
+    if (!id) {
+      // Unset the current workspace
+      this._currentWorkspaceId = undefined;
+    } else {
+      if (!this._workspaces.has(id)) {
+        throw new Error(`invalid workspace id: ${id}`);
+      }
+      this._currentWorkspaceId = id;
     }
   }
+}
+
+export class AgentEnvironment {
+  private _workspaces = new Workspaces();
+
+  constructor() {}
+
+  get workspaces(): Workspaces {
+    return this._workspaces;
+  }
+}
+
+export class EnvToolParams implements ToolParams {
+  env: AgentEnvironment;
+  verboseParsingErrors?: boolean;
+
+  constructor(env: AgentEnvironment) {
+    this.env = env;
+  }
+}
+
+export abstract class EnvTool extends StructuredTool {
+  env!: AgentEnvironment;
+
+  get name() {
+    return this.constructor.name.replaceAll("Tool", "");
+  }
+
+  init(params: EnvToolParams) {
+    this.env = params.env;
+  }
+}
+
+export type EnvToolClass = new (params: EnvToolParams) => EnvTool;
+
+export abstract class FileTool extends EnvTool {
+  protected async resolveFile(relativePath: string): Promise<string> {
+    const currentWorkspace = this.env.workspaces.currentWorkspace;
+    if (!currentWorkspace) {
+      throw new Error("No current workspace selected");
+    }
+    return currentWorkspace.resolveFile(relativePath);
+  }
+}
+
+/**
+ * File read tool for reading file contents.
+ */
+export class FileReadToolClass extends FileTool {
+  description = "Read the contents of a file";
+  schema = z.object({
+    relativePath: z.string().describe("The relative path of the file to read"),
+  });
+
+  protected async _call(
+    arg: z.infer<typeof this.schema>,
+    runManager?: CallbackManagerForToolRun
+  ): Promise<string> {
+    try {
+      const filePath = await this.resolveFile(arg.relativePath);
+      const content = await fs.readFile(filePath, "utf-8");
+      return content;
+    } catch (error: any) {
+      throw new Error(
+        `❌ Error reading file "${arg.relativePath}": ${error.message}`
+      );
+    }
+  }
+}
+
+/**
+ * File write tool for writing content to a file.
+ */
+export class FileWriteToolClass extends FileTool {
+  description = "Write content to a file";
+  schema = z.object({
+    filePath: z.string().describe("The relative path of the file to write"),
+    content: z.string().describe("The content to write to the file"),
+  });
+
+  protected async _call(
+    arg: z.infer<typeof this.schema>,
+    runManager?: CallbackManagerForToolRun
+  ): Promise<string> {
+    try {
+      const resolvedPath = await this.resolveFile(arg.filePath);
+      await fs.writeFile(resolvedPath, arg.content, "utf-8");
+      return `✅ File "${arg.filePath}" written successfully`;
+    } catch (error: any) {
+      throw new Error(
+        `❌ Error writing file "${arg.filePath}": ${error.message}`
+      );
+    }
+  }
+}
+
+export class SelectWorkspaceTool extends EnvTool {
+  description = "Select a workspace to work in";
+  schema = z.object({
+    workspaceId: z
+      .string()
+      .describe("Unique id of the workspace. Usually its folder name."),
+  });
+
+  protected async _call(
+    { workspaceId }: { workspaceId: string },
+    runManager?: CallbackManagerForToolRun
+  ): Promise<string> {
+    try {
+      this.env.workspaces.currentWorkspaceId = workspaceId;
+      return `✅ Workspace "${workspaceId}" selected`;
+    } catch (error: any) {
+      throw new Error(`❌ Error selecting workspace: ${error.message}`);
+    }
+  }
+}
+
+export class ListFilesTool extends FileTool {
+  description =
+    "List files in the current workspace, respecting all .gitignore files in the ancestry and with a 500 file limit";
+  schema = z.object({
+    globPattern: z
+      .string()
+      .optional()
+      .describe("Glob pattern to filter files. Default is '*'"),
+  });
+
+  protected async _call(
+    { globPattern = "*" }: { globPattern: string },
+    runManager?: CallbackManagerForToolRun
+  ): Promise<string> {
+    try {
+      const currentWorkspace = this.env.workspaces.currentWorkspace;
+      if (!currentWorkspace) {
+        throw new Error("No current workspace selected");
+      }
+
+      const files = await currentWorkspace.enumerateFiles(globPattern);
+
+      if (files.length > 500) {
+        throw new Error(
+          "Found more than 500 files. Please use a more specific glob pattern."
+        );
+      }
+
+      return files.join("\n");
+    } catch (error: any) {
+      throw new Error(`❌ Error listing files: ${error.message}`);
+    }
+  }
+}
+
+export const AllToolClasses: EnvToolClass[] = [
+  FileReadToolClass,
+  FileWriteToolClass,
+  SelectWorkspaceTool,
+  ListFilesTool,
+];
+
+function instantiateTools(env: AgentEnvironment, ToolClasses: EnvToolClass[]): EnvTool[] {
+  const sharedParams = { env };
+  return ToolClasses.map((ToolClass) => {
+    const tool = new ToolClass(new EnvToolParams(env));
+    tool.init(sharedParams);
+    return tool;
+  });
 }
 
 // Model manager class (Singleton)
@@ -53,15 +347,27 @@ class ModelManager {
   createModel(config: ModelConfig): BaseLanguageModel {
     let model: BaseLanguageModel;
     const { modelName, temperature, maxTokens } = config;
-    
+
     if (modelName.startsWith("gpt-")) {
       const apiKey = process.env.OPENAI_API_KEY;
-      if (!apiKey) throw new Error("OpenAI API key not found in environment variables");
-      model = new ChatOpenAI({ modelName, temperature, maxTokens, openAIApiKey: apiKey });
+      if (!apiKey)
+        throw new Error("OPENAI_API_KEY not found in environment variables");
+      model = new ChatOpenAI({
+        modelName,
+        temperature,
+        maxTokens,
+        openAIApiKey: apiKey,
+      });
     } else if (modelName.includes("claude")) {
       const apiKey = process.env.ANTHROPIC_API_KEY;
-      if (!apiKey) throw new Error("Anthropic API key not found in environment variables");
-      model = new ChatAnthropic({ modelName, temperature, maxTokens, anthropicApiKey: apiKey });
+      if (!apiKey)
+        throw new Error("ANTHROPIC_API_KEY not found in environment variables");
+      model = new ChatAnthropic({
+        modelName,
+        temperature,
+        maxTokens,
+        anthropicApiKey: apiKey,
+      });
     } else {
       throw new Error(`Unsupported model: ${modelName}`);
     }
@@ -84,7 +390,7 @@ function getOrCreateModel(config: ModelConfig): BaseLanguageModel {
 // Function to create an agent with a given model
 async function createAgent(
   model: BaseLanguageModel,
-  tools: Tool[]
+  tools: ToolInterface[]
 ): Promise<AgentExecutor> {
   const prompt = ChatPromptTemplate.fromMessages([
     SystemMessagePromptTemplate.fromTemplate(
@@ -108,16 +414,16 @@ async function createAgent(
 }
 
 // Main function to set up and run the multi-agent system
-async function runMultiAgentSystem(model: BaseLanguageModel) {
+async function runPrompt(env: AgentEnvironment, model: BaseLanguageModel, input: string) {
   // Define tools
-  const tools = [new Calculator()];
+  const tools: ToolInterface[] = instantiateTools(env, AllToolClasses);
 
   // Create the agent
   const agent = await createAgent(model, tools);
 
   // Example usage
   const result = await agent.invoke({
-    input: "What is the result of 15 * 3 + 27?",
+    input,
   });
 
   console.log("Agent's response:", result.output);
@@ -127,17 +433,15 @@ async function runMultiAgentSystem(model: BaseLanguageModel) {
 const modelConfig: ModelConfig = {
   modelName: "claude-3-sonnet-20240229",
   temperature: 0.7,
-  maxTokens: 1000
+  maxTokens: 1000,
 };
 
-const model = getOrCreateModel(modelConfig);
-runMultiAgentSystem(model);
+async function main() {
+  const model = getOrCreateModel(modelConfig);
+  const env = new AgentEnvironment();
+  const peonPath = path.resolve(__dirname, "..");
+  env.workspaces.addWorkspace(peonPath);
+  await runPrompt(env, model, "What classes are in index.ts?");
+}
+main();
 
-// To use a different model, you can simply change the modelConfig:
-// const openAIConfig: ModelConfig = {
-//   modelName: "gpt-3.5-turbo",
-//   temperature: 0.5,
-//   maxTokens: 500
-// };
-// const openAIModel = getOrCreateModel(openAIConfig);
-// runMultiAgentSystem(openAIModel);

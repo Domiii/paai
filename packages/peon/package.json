@@ -11,7 +11,11 @@
   "description": "",
   "dependencies": {
     "@langchain/anthropic": "^0.2.17",
-    "@langchain/core": "^0.2.31"
+    "@langchain/community": "^0.2.32",
+    "@langchain/core": "^0.2.31",
+    "dotenv": "^16.4.5",
+    "glob": "^11.0.0",
+    "langchain": "^0.2.18"
   },
   "devDependencies": {
     "@types/node": "^22.5.4",
