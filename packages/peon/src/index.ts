@@ -22,6 +22,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { AgentExecutor, createReactAgent } from "langchain/agents";
 
 import { z } from "zod";
+import { RunnableConfig } from "@langchain/core/runnables";
 
 export interface ModelConfig {
   modelName: string;
@@ -315,7 +316,10 @@ export const AllToolClasses: EnvToolClass[] = [
   ListFilesTool,
 ];
 
-function instantiateTools(env: AgentEnvironment, ToolClasses: EnvToolClass[]): EnvTool[] {
+function instantiateTools(
+  env: AgentEnvironment,
+  ToolClasses: EnvToolClass[]
+): EnvTool[] {
   const sharedParams = { env };
   return ToolClasses.map((ToolClass) => {
     const tool = new ToolClass(new EnvToolParams(env));
@@ -414,19 +418,42 @@ async function createAgent(
 }
 
 // Main function to set up and run the multi-agent system
-async function runPrompt(env: AgentEnvironment, model: BaseLanguageModel, input: string) {
+async function runPrompt(
+  env: AgentEnvironment,
+  model: BaseLanguageModel,
+  input: string
+) {
   // Define tools
   const tools: ToolInterface[] = instantiateTools(env, AllToolClasses);
 
   // Create the agent
   const agent = await createAgent(model, tools);
 
-  // Example usage
-  const result = await agent.invoke({
-    input,
-  });
-
-  console.log("Agent's response:", result.output);
+  for await (const event of agent.streamEvents(
+    {
+      input,
+    },
+    { version: "v2" }
+  )) {
+    // event.data.output.usage_metadata, // undefined
+    // event.data.output.response_metadata, // { prompt: 0, completion: 0 }
+    const tokenUsage = event.data.output.llmOutput?.tokenUsage;
+    if (tokenUsage) {
+      usageStats.promptTokens += tokenUsage.promptTokens || 0;
+      usageStats.completionTokens += tokenUsage.completionTokens || 0;
+      usageStats.totalTokens += tokenUsage.totalTokens || 0;
+    }
+    if (event.event === "on_llm_start") {
+      console.log("LLM started");
+    } else if (event.event === "on_llm_end") {
+    } else if (event.event === "on_tool_start") {
+      console.log("Tool started:", event.data.tool);
+    } else if (event.event === "on_tool_end") {
+      console.log("Tool ended:", event.data.output);
+    } else if (event.event === "on_agent_finish") {
+      console.log("Agent finished with final response:", event.data.returnValues.output);
+    }
+  }
 }
 
 // Usage example
@@ -444,4 +471,3 @@ async function main() {
   await runPrompt(env, model, "What classes are in index.ts?");
 }
 main();
-
