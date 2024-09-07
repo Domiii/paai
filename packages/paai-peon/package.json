@@ -10,9 +10,12 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@langchain/anthropic": "^0.2.17",
     "@langchain/core": "^0.2.31"
   },
   "devDependencies": {
-    "@types/node": "^22.5.4"
+    "@types/node": "^22.5.4",
+    "eslint": "^9.10.0",
+    "typescript": "^5.5.4"
   }
 }

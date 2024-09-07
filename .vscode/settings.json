@@ -18,5 +18,12 @@
     "titleBar.inactiveBackground": "#170d0b99",
     "titleBar.inactiveForeground": "#e7e7e799"
   },
-  "peacock.color": "#170d0b"
+  "peacock.color": "#170d0b",
+  "search.exclude": {
+    "**/.yarn": true,
+    "**/.pnp.*": true
+  },
+  "eslint.nodePath": ".yarn/sdks",
+  "typescript.tsdk": ".yarn/sdks/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true
 }
