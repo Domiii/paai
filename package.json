@@ -13,5 +13,9 @@
     "@types/electron": "^1.4.38",
     "@types/node": "^22.5.4",
     "@types/vscode": "^1.93.0"
-  }
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "packageManager": "yarn@4.4.1"
 }

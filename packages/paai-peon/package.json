@@ -1,5 +1,5 @@
 {
-  "name": "paai-peon",
+  "name": "@paai/peon",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
@@ -8,5 +8,11 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": ""
+  "description": "",
+  "dependencies": {
+    "@langchain/core": "^0.2.31"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.4"
+  }
 }
