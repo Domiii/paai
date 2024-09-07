@@ -290,9 +290,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@paai/code@workspace:packages/paai-code":
+"@paai/code@workspace:packages/code":
   version: 0.0.0-use.local
-  resolution: "@paai/code@workspace:packages/paai-code"
+  resolution: "@paai/code@workspace:packages/code"
   dependencies:
     "@types/electron": "npm:^1.6.10"
     "@types/mocha": "npm:^10.0.7"
@@ -310,9 +310,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@paai/peon@workspace:packages/paai-peon":
+"@paai/peon@workspace:packages/peon":
   version: 0.0.0-use.local
-  resolution: "@paai/peon@workspace:packages/paai-peon"
+  resolution: "@paai/peon@workspace:packages/peon"
   dependencies:
     "@langchain/anthropic": "npm:^0.2.17"
     "@langchain/core": "npm:^0.2.31"
