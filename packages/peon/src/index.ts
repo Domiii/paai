@@ -1,30 +1,30 @@
+import dotenv from "dotenv";
 import fs from "fs/promises";
-import path from "path";
 import { glob } from "glob";
 import ignore, { Ignore } from "ignore";
-import dotenv from "dotenv";
+import path from "path";
 
 import { ChatAnthropic } from "@langchain/anthropic";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import {
+  StructuredTool,
   ToolInterface,
   ToolParams,
-  StructuredTool,
 } from "@langchain/core/tools";
-import { ChatOpenAI } from "@langchain/openai";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
+import { ChatOpenAI } from "@langchain/openai";
 import truncate from "lodash/truncate";
 
 // Load .secret.env file
 dotenv.config({ path: path.resolve(__dirname, "..", ".secret.env") });
 
-import { z } from "zod";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { z } from "zod";
+import { ErrorMonitorDeco } from "./util/ErrorMonitor";
 import {
   pathNormalized,
-  pathNormalizedForce,
-  pathRelative,
+  pathNormalizedForce
 } from "./util/pathUtil";
 
 export interface ModelConfig {
@@ -77,7 +77,7 @@ export class Workspace {
       ignore: ["**/.git/**", "**/node_modules/**"],
     };
 
-    const files = ((await glob(globPattern, options)) || []);
+    const files = (await glob(globPattern, options)) || [];
 
     // console.log(
     //   `DDBG files "${this._absolutePath}" on "${globPattern}": ${files.join(",")}`
@@ -185,6 +185,72 @@ export class AgentEnvironment {
   get workspaces(): Workspaces {
     return this._workspaces;
   }
+
+  @ErrorMonitorDeco()
+  async runPrompt(
+    env: AgentEnvironment,
+    model: BaseChatModel,
+    promptText: string
+  ) {
+    // Define tools
+    const tools: ToolInterface[] = instantiateTools(env, AllToolClasses);
+
+    // Create the agent
+    const agent = await createAgent(model, tools);
+
+    for await (const event of agent.streamEvents(
+      {
+        messages: [new HumanMessage(promptText)],
+      },
+      { version: "v2" }
+    )) {
+      // console.log(`DDBG streamEvents: ${visualizeObjectTree(event)}`);
+
+      // TODO: tokenUsage
+      // const tokenUsage = event.data.output.llmOutput?.tokenUsage;
+      // if (tokenUsage) {
+      //   usageStats.promptTokens += tokenUsage.promptTokens || 0;
+      //   usageStats.completionTokens += tokenUsage.completionTokens || 0;
+      //   usageStats.totalTokens += tokenUsage.totalTokens || 0;
+      // }
+      const kind = event.event;
+      // if (kind === "on_llm_start") {
+      //   console.log("LLM started");
+      // } else
+      if (unimportantMessages.has(kind)) {
+        // do nothing.
+      } else if (kind === "on_llm_end") {
+        console.log("⚙ [on_llm_end]");
+      } else if (kind === "on_tool_start") {
+        console.log(
+          `🔨 [tool_start] [${event.name}]`,
+          truncate(JSON.stringify(event.data?.input?.input), { length: 120 })
+        );
+      } else if (kind === "on_tool_end") {
+        console.log(
+          `🔨 [tool_end] [${event.name}]`,
+          truncate(JSON.stringify(event.data?.output?.content), { length: 120 })
+        );
+      } else if (kind === "on_chain_end") {
+        // console.log("🔨 Chain ended:", event.data?.output);
+        const content = event.data?.output?.content?.filter(
+          (c: any) => c.type == "text"
+        );
+        if (content) {
+          console.log(
+            `🔨 [on_chain_end] ${content
+              .map((c: any) => c.text)
+              .join("\n\n")
+              .trim()}`
+          );
+        }
+      } else if (kind === "on_agent_finish") {
+        console.log(`⚙ [on_agent_finish]: ${visualizeObjectTree(event.data)}`);
+      } else {
+        console.log(`⚙ [${kind}]`, visualizeObjectTree(event));
+      }
+    }
+  }
 }
 
 export class EnvToolParams implements ToolParams {
@@ -237,7 +303,7 @@ export class FileReadToolClass extends FileTool {
       return content;
     } catch (error: any) {
       throw new Error(
-        `❌ Error reading file "${arg.relativePath}": ${error.message}`
+        `❌ Error reading file "${arg.relativePath}": ${error.stack}`
       );
     }
   }
@@ -254,17 +320,16 @@ export class FileWriteToolClass extends FileTool {
   });
 
   protected async _call(
-    arg: z.infer<typeof this.schema>,
+    { filePath, content }: z.infer<typeof this.schema>,
     runManager?: CallbackManagerForToolRun
   ): Promise<string> {
     try {
-      const resolvedPath = await this.resolveFile(arg.filePath);
-      await fs.writeFile(resolvedPath, arg.content, "utf-8");
-      return `✅ File "${arg.filePath}" written successfully`;
+      filePath = await this.resolveFile(filePath);
+      await fs.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.writeFile(filePath, content, "utf-8");
+      return `✅ File "${filePath}" written successfully`;
     } catch (error: any) {
-      throw new Error(
-        `❌ Error writing file "${arg.filePath}": ${error.message}`
-      );
+      throw new Error(`❌ Error writing file "${filePath}": ${error.stack}`);
     }
   }
 }
@@ -285,7 +350,7 @@ export class SelectWorkspaceTool extends EnvTool {
       this.env.workspaces.setCurrentWorkspaceId(workspaceId);
       return `✅ Workspace "${workspaceId}" selected`;
     } catch (error: any) {
-      throw new Error(`❌ Error selecting workspace: ${error.message}`);
+      throw new Error(`❌ Error selecting workspace: ${error.stack}`);
     }
   }
 }
@@ -320,7 +385,7 @@ export class ListFilesTool extends FileTool {
 
       return files.join("\n");
     } catch (error: any) {
-      throw new Error(`❌ Error listing files: ${error.message}`);
+      throw new Error(`❌ Error listing files: ${error.stack}`);
     }
   }
 }
@@ -409,7 +474,7 @@ function getOrCreateModel(config: ModelConfig): BaseChatModel {
 
 // Function to create an agent with a given model
 async function createAgent(model: BaseChatModel, tools: ToolInterface[]) {
-  // TODO: Create agent classes
+  // TODO: Create separate agent classes with different system prompts and tools.
   const systemMessage = new SystemMessage("Go code or some'in");
   return createReactAgent({
     llm: model,
@@ -454,78 +519,21 @@ const unimportantMessages = new Set([
   "on_chat_model_end",
 ]);
 
-// Main function to set up and run the multi-agent system
-export async function runPrompt(
-  env: AgentEnvironment,
-  model: BaseChatModel,
-  promptText: string
-) {
-  // Define tools
-  const tools: ToolInterface[] = instantiateTools(env, AllToolClasses);
-
-  // Create the agent
-  const agent = await createAgent(model, tools);
-
-  for await (const event of agent.streamEvents(
-    {
-      messages: [new HumanMessage(promptText)],
-    },
-    { version: "v2" }
-  )) {
-    // console.log(`DDBG streamEvents: ${visualizeObjectTree(event)}`);
-    
-    // TODO: tokenUsage
-    // const tokenUsage = event.data.output.llmOutput?.tokenUsage;
-    // if (tokenUsage) {
-    //   usageStats.promptTokens += tokenUsage.promptTokens || 0;
-    //   usageStats.completionTokens += tokenUsage.completionTokens || 0;
-    //   usageStats.totalTokens += tokenUsage.totalTokens || 0;
-    // }
-    const kind = event.event;
-    // if (kind === "on_llm_start") {
-    //   console.log("LLM started");
-    // } else
-    if (unimportantMessages.has(kind)) {
-      // do nothing.
-    } else if (kind === "on_llm_end") {
-      console.log("⚙ [on_llm_end]");
-    } else if (kind === "on_tool_start") {
-      console.log(
-        `🔨 [tool_start] [${event.name}]`,
-        truncate(JSON.stringify(event.data?.input?.input), { length: 120 })
-      );
-    } else if (kind === "on_tool_end") {
-      console.log(
-        `🔨 [tool_end] [${event.name}]`,
-        truncate(JSON.stringify(event.data?.output?.content), { length: 120 })
-      );
-    } else if (kind === "on_chain_end") {
-      // console.log("🔨 Chain ended:", event.data?.output);
-      const content = event.data?.output?.content?.filter(
-        (c: any) => c.type == "text"
-      );
-      if (content) {
-        console.log(
-          `🔨 [on_chain_end] ${content
-            .map((c: any) => c.text)
-            .join("\n\n")
-            .trim()}`
-        );
-      }
-    } else if (kind === "on_agent_finish") {
-      console.log(`⚙ [on_agent_finish]: ${visualizeObjectTree(event.data)}`);
-    } else {
-      console.log(`⚙ [${kind}]`, visualizeObjectTree(event));
-    }
-  }
-}
-
-// Usage example
 const modelConfig: ModelConfig = {
   modelName: "claude-3-sonnet-20240229",
   temperature: 0.7,
   maxTokens: 1000,
 };
+
+async function readPromptFromFile(): Promise<string> {
+  const promptPath = path.join(__dirname, "user_prompt.md");
+  try {
+    return await fs.readFile(promptPath, "utf-8");
+  } catch (error) {
+    console.error(`Error reading prompt file: ${error}`);
+    throw error;
+  }
+}
 
 async function main() {
   const model = getOrCreateModel(modelConfig);
@@ -535,7 +543,9 @@ async function main() {
   const peonPath = path.resolve(__dirname, "..");
   env.workspaces.addWorkspace(peonPath);
   env.workspaces.setCurrentWorkspace(peonPath);
-  await runPrompt(env, model, "What classes are in index.ts?");
+
+  const prompt = await readPromptFromFile();
+  await env.runPrompt(env, model, prompt);
 }
 
 if (require.main === module) {
