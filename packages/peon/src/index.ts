@@ -1,28 +1,31 @@
 import fs from "fs/promises";
-import * as path from "path";
+import path from "path";
 import { glob } from "glob";
 import ignore, { Ignore } from "ignore";
+import dotenv from "dotenv";
 
 import { ChatAnthropic } from "@langchain/anthropic";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
-import { BaseLanguageModel } from "@langchain/core/language_models/base";
-import {
-  ChatPromptTemplate,
-  HumanMessagePromptTemplate,
-  SystemMessagePromptTemplate,
-} from "@langchain/core/prompts";
 import {
   ToolInterface,
   ToolParams,
-  DynamicStructuredTool,
-  tool,
   StructuredTool,
 } from "@langchain/core/tools";
 import { ChatOpenAI } from "@langchain/openai";
-import { AgentExecutor, createReactAgent } from "langchain/agents";
+import { createReactAgent } from "@langchain/langgraph/prebuilt";
+import truncate from "lodash/truncate";
+
+// Load .secret.env file
+dotenv.config({ path: path.resolve(__dirname, "..", ".secret.env") });
 
 import { z } from "zod";
-import { RunnableConfig } from "@langchain/core/runnables";
+import { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+import {
+  pathNormalized,
+  pathNormalizedForce,
+  pathRelative,
+} from "./util/pathUtil";
 
 export interface ModelConfig {
   modelName: string;
@@ -35,7 +38,7 @@ export class Workspace {
   private _label: string;
 
   constructor(absolutePath: string, label: string) {
-    this._absolutePath = absolutePath;
+    this._absolutePath = pathNormalizedForce(absolutePath);
     this._label = label;
   }
 
@@ -64,27 +67,29 @@ export class Workspace {
     return realFullPath;
   }
 
-  async enumerateFiles(globPattern: string): Promise<string[]> {
+  async enumerateFiles(globPattern: string = "**/*"): Promise<string[]> {
     const options = {
       cwd: this._absolutePath,
       nodir: true,
       dot: true,
-      absolute: true,
+      absolute: false,
+      posix: true,
       ignore: ["**/.git/**", "**/node_modules/**"],
     };
 
-    const files = await glob(globPattern, options);
+    const files = ((await glob(globPattern, options)) || []);
+
+    // console.log(
+    //   `DDBG files "${this._absolutePath}" on "${globPattern}": ${files.join(",")}`
+    // );
 
     const ig = await this.getGitignoreRules();
 
-    const nonIgnoredFiles = files.filter((file) => {
-      const relativePath = path.relative(this._absolutePath, file);
+    const nonIgnoredFiles = files.filter((relativePath) => {
       return !ig.ignores(relativePath);
     });
 
-    return nonIgnoredFiles.map((file) =>
-      path.relative(this._absolutePath, file)
-    );
+    return nonIgnoredFiles;
   }
 
   private async getGitignoreRules(): Promise<Ignore> {
@@ -127,6 +132,14 @@ export class Workspaces {
       : undefined;
   }
 
+  get workspaces(): Map<string, Workspace> {
+    return this._workspaces;
+  }
+
+  get currentWorkspaceId(): string | undefined {
+    return this._currentWorkspaceId;
+  }
+
   addWorkspace(fpath: string): void {
     const label = path.basename(fpath);
     if (this._workspaces.has(label)) {
@@ -138,15 +151,20 @@ export class Workspaces {
     this._workspaces.set(label, workspace);
   }
 
-  get workspaces(): Map<string, Workspace> {
-    return this._workspaces;
+  setCurrentWorkspace(idOrPath: string) {
+    let id: string | undefined;
+    if (idOrPath) {
+      idOrPath = pathNormalized(idOrPath);
+      if (idOrPath.includes("/")) {
+        id = idOrPath.split("/").pop();
+      } else {
+        id = idOrPath;
+      }
+    }
+    return this.setCurrentWorkspaceId(id);
   }
 
-  get currentWorkspaceId(): string | undefined {
-    return this._currentWorkspaceId;
-  }
-
-  set currentWorkspaceId(id: string | undefined) {
+  setCurrentWorkspaceId(id: string | undefined) {
     if (!id) {
       // Unset the current workspace
       this._currentWorkspaceId = undefined;
@@ -180,12 +198,10 @@ export class EnvToolParams implements ToolParams {
 
 export abstract class EnvTool extends StructuredTool {
   env!: AgentEnvironment;
-
-  get name() {
-    return this.constructor.name.replaceAll("Tool", "");
-  }
+  name!: string;
 
   init(params: EnvToolParams) {
+    this.name = this.constructor.name.replaceAll("Tool", "");
     this.env = params.env;
   }
 }
@@ -266,7 +282,7 @@ export class SelectWorkspaceTool extends EnvTool {
     runManager?: CallbackManagerForToolRun
   ): Promise<string> {
     try {
-      this.env.workspaces.currentWorkspaceId = workspaceId;
+      this.env.workspaces.setCurrentWorkspaceId(workspaceId);
       return `✅ Workspace "${workspaceId}" selected`;
     } catch (error: any) {
       throw new Error(`❌ Error selecting workspace: ${error.message}`);
@@ -312,7 +328,7 @@ export class ListFilesTool extends FileTool {
 export const AllToolClasses: EnvToolClass[] = [
   FileReadToolClass,
   FileWriteToolClass,
-  SelectWorkspaceTool,
+  // SelectWorkspaceTool,
   ListFilesTool,
 ];
 
@@ -331,7 +347,7 @@ function instantiateTools(
 // Model manager class (Singleton)
 class ModelManager {
   private static instance: ModelManager;
-  private models: Map<string, BaseLanguageModel>;
+  private models: Map<string, BaseChatModel>;
 
   private constructor() {
     this.models = new Map();
@@ -344,12 +360,12 @@ class ModelManager {
     return ModelManager.instance;
   }
 
-  getModel(config: ModelConfig): BaseLanguageModel | undefined {
-    return this.models.get(config.modelName);
+  getModel(config: ModelConfig): BaseChatModel | undefined {
+    return this.models.get(JSON.stringify(config));
   }
 
-  createModel(config: ModelConfig): BaseLanguageModel {
-    let model: BaseLanguageModel;
+  createModel(config: ModelConfig): BaseChatModel {
+    let model: BaseChatModel;
     const { modelName, temperature, maxTokens } = config;
 
     if (modelName.startsWith("gpt-")) {
@@ -376,13 +392,13 @@ class ModelManager {
       throw new Error(`Unsupported model: ${modelName}`);
     }
 
-    this.models.set(modelName, model);
+    this.models.set(JSON.stringify(config), model);
     return model;
   }
 }
 
 // Function to get or create a model
-function getOrCreateModel(config: ModelConfig): BaseLanguageModel {
+function getOrCreateModel(config: ModelConfig): BaseChatModel {
   const modelManager = ModelManager.getInstance();
   let model = modelManager.getModel(config);
   if (!model) {
@@ -392,36 +408,57 @@ function getOrCreateModel(config: ModelConfig): BaseLanguageModel {
 }
 
 // Function to create an agent with a given model
-async function createAgent(
-  model: BaseLanguageModel,
-  tools: ToolInterface[]
-): Promise<AgentExecutor> {
-  const prompt = ChatPromptTemplate.fromMessages([
-    SystemMessagePromptTemplate.fromTemplate(
-      "You are a helpful AI assistant. Use the tools provided to answer the user's questions."
-    ),
-    HumanMessagePromptTemplate.fromTemplate(
-      "Question: {input}\n\nTools available: {tools}"
-    ),
-  ]);
-
-  const agent = await createReactAgent({
+async function createAgent(model: BaseChatModel, tools: ToolInterface[]) {
+  // TODO: Create agent classes
+  const systemMessage = new SystemMessage("Go code or some'in");
+  return createReactAgent({
     llm: model,
     tools,
-    prompt,
-  });
-
-  return new AgentExecutor({
-    agent,
-    tools,
+    messageModifier: systemMessage,
   });
 }
 
+function visualizeObjectTree(o: any, indent: string = ""): string {
+  if (o === null) return "null";
+  if (typeof o !== "object") return truncate(String(o), { length: 20 });
+
+  const isArray = Array.isArray(o);
+  const prefix = isArray ? "[" : "{";
+  const suffix = isArray ? "]" : "}";
+
+  const lines: string[] = [prefix];
+
+  for (const [key, value] of Object.entries(o)) {
+    const formattedKey = isArray ? "" : `${key}: `;
+    const formattedValue = visualizeObjectTree(value, indent + "  ");
+    lines.push(`${indent}  ${formattedKey}${formattedValue},`);
+  }
+
+  if (lines.length > 1) {
+    lines[lines.length - 1] = lines[lines.length - 1].slice(0, -1); // Remove trailing comma
+  }
+
+  lines.push(`${indent}${suffix}`);
+
+  return lines.join("\n");
+}
+
+const unimportantMessages = new Set([
+  "on_chain_stream",
+  "on_chain_start",
+  "on_prompt_start",
+  "on_prompt_start",
+  "on_prompt_end",
+  "on_chat_model_start",
+  "on_chat_model_stream",
+  "on_chat_model_end",
+]);
+
 // Main function to set up and run the multi-agent system
-async function runPrompt(
+export async function runPrompt(
   env: AgentEnvironment,
-  model: BaseLanguageModel,
-  input: string
+  model: BaseChatModel,
+  promptText: string
 ) {
   // Define tools
   const tools: ToolInterface[] = instantiateTools(env, AllToolClasses);
@@ -431,27 +468,54 @@ async function runPrompt(
 
   for await (const event of agent.streamEvents(
     {
-      input,
+      messages: [new HumanMessage(promptText)],
     },
     { version: "v2" }
   )) {
-    // event.data.output.usage_metadata, // undefined
-    // event.data.output.response_metadata, // { prompt: 0, completion: 0 }
-    const tokenUsage = event.data.output.llmOutput?.tokenUsage;
-    if (tokenUsage) {
-      usageStats.promptTokens += tokenUsage.promptTokens || 0;
-      usageStats.completionTokens += tokenUsage.completionTokens || 0;
-      usageStats.totalTokens += tokenUsage.totalTokens || 0;
-    }
-    if (event.event === "on_llm_start") {
-      console.log("LLM started");
-    } else if (event.event === "on_llm_end") {
-    } else if (event.event === "on_tool_start") {
-      console.log("Tool started:", event.data.tool);
-    } else if (event.event === "on_tool_end") {
-      console.log("Tool ended:", event.data.output);
-    } else if (event.event === "on_agent_finish") {
-      console.log("Agent finished with final response:", event.data.returnValues.output);
+    // console.log(`DDBG streamEvents: ${visualizeObjectTree(event)}`);
+    
+    // TODO: tokenUsage
+    // const tokenUsage = event.data.output.llmOutput?.tokenUsage;
+    // if (tokenUsage) {
+    //   usageStats.promptTokens += tokenUsage.promptTokens || 0;
+    //   usageStats.completionTokens += tokenUsage.completionTokens || 0;
+    //   usageStats.totalTokens += tokenUsage.totalTokens || 0;
+    // }
+    const kind = event.event;
+    // if (kind === "on_llm_start") {
+    //   console.log("LLM started");
+    // } else
+    if (unimportantMessages.has(kind)) {
+      // do nothing.
+    } else if (kind === "on_llm_end") {
+      console.log("⚙ [on_llm_end]");
+    } else if (kind === "on_tool_start") {
+      console.log(
+        `🔨 [tool_start] [${event.name}]`,
+        truncate(JSON.stringify(event.data?.input?.input), { length: 120 })
+      );
+    } else if (kind === "on_tool_end") {
+      console.log(
+        `🔨 [tool_end] [${event.name}]`,
+        truncate(JSON.stringify(event.data?.output?.content), { length: 120 })
+      );
+    } else if (kind === "on_chain_end") {
+      // console.log("🔨 Chain ended:", event.data?.output);
+      const content = event.data?.output?.content?.filter(
+        (c: any) => c.type == "text"
+      );
+      if (content) {
+        console.log(
+          `🔨 [on_chain_end] ${content
+            .map((c: any) => c.text)
+            .join("\n\n")
+            .trim()}`
+        );
+      }
+    } else if (kind === "on_agent_finish") {
+      console.log(`⚙ [on_agent_finish]: ${visualizeObjectTree(event.data)}`);
+    } else {
+      console.log(`⚙ [${kind}]`, visualizeObjectTree(event));
     }
   }
 }
@@ -466,8 +530,14 @@ const modelConfig: ModelConfig = {
 async function main() {
   const model = getOrCreateModel(modelConfig);
   const env = new AgentEnvironment();
+
+  // Add paai-peon as the only workspace.
   const peonPath = path.resolve(__dirname, "..");
   env.workspaces.addWorkspace(peonPath);
+  env.workspaces.setCurrentWorkspace(peonPath);
   await runPrompt(env, model, "What classes are in index.ts?");
 }
-main();
+
+if (require.main === module) {
+  main();
+}

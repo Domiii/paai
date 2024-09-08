@@ -11,8 +11,15 @@
     "esModuleInterop": true,
     "moduleResolution": "NodeNext",
     "types": [
-      "node"
-    ]
+      "node",
+      "jest"
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "*": [
+        "src/*"
+      ]
+    }
   },
   "exclude": [
     "node_modules",

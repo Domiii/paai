@@ -4,6 +4,8 @@ dist
 node_modules
 .vscode-test/
 *.vsix
+*.secret*
+tmp.*
 
 # Yarn
 yarn-error.log
