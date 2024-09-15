@@ -24,7 +24,7 @@
         "src/*"
       ]
     },
-    "outDir": "../../out/peon"
+    "outDir": "../../out/packages/peon"
   },
   "exclude": [
     "node_modules",

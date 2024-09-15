@@ -14,20 +14,26 @@ import {
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { ChatOpenAI } from "@langchain/openai";
 import truncate from "lodash/truncate";
+import isEmpty from "lodash/isEmpty";
+
+const MONOREPO_ROOT_DIR = path.resolve(__dirname, "../../..");
+const PEON_ROOT_DIR = path.resolve(MONOREPO_ROOT_DIR, "packages/peon");
+const ASSET_DIR = path.resolve(PEON_ROOT_DIR, "assets");
 
 // Load .secret.env file
-dotenv.config({ path: path.resolve(__dirname, "..", ".secret.env") });
+dotenv.config({ path: path.resolve(MONOREPO_ROOT_DIR, ".secret.env") });
 
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { z } from "zod";
 import { ErrorMonitorDeco } from "./util/ErrorMonitor";
 import { pathNormalized, pathNormalizedForce } from "./util/pathUtil";
+import NestedError from "./util/NestedError";
 
 export interface ModelConfig {
   modelName: string;
   temperature?: number;
-  maxTokens?: number;
+  maxOutputTokens?: number;
 }
 
 export class Workspace {
@@ -47,11 +53,15 @@ export class Workspace {
     return this._label;
   }
 
-  async resolveFile(relativePath: string): Promise<string> {
+  async resolveFile(
+    relativePath: string,
+    checkAccess: boolean = true
+  ): Promise<string> {
     const fullPath = path.resolve(this._absolutePath, relativePath);
 
     // Resolve the real path, following symlinks
-    const realFullPath = await fs.realpath(fullPath);
+    // NOTE: we might not be able to use realpath here because the file might not exist yet.
+    const realFullPath = checkAccess ? await fs.realpath(fullPath) : fullPath;
     const realBasePath = await fs.realpath(this._absolutePath);
     if (!realFullPath.startsWith(realBasePath)) {
       throw new Error(
@@ -59,8 +69,10 @@ export class Workspace {
       );
     }
 
-    // Check if the file exists and is readable
-    await fs.access(realFullPath, fs.constants.R_OK);
+    if (checkAccess) {
+      // Check if the file exists and is readable
+      await fs.access(realFullPath, fs.constants.R_OK);
+    }
     return realFullPath;
   }
 
@@ -212,52 +224,75 @@ export class AgentEnvironment {
       },
       { version: "v2" }
     )) {
-      // console.log(`DDBG streamEvents: ${visualizeObjectTree(event)}`);
+      try {
+        // console.log(`DDBG streamEvents: ${visualizeObjectTree(event)}`);
 
-      // TODO: tokenUsage
-      // const tokenUsage = event.data.output.llmOutput?.tokenUsage;
-      // if (tokenUsage) {
-      //   usageStats.promptTokens += tokenUsage.promptTokens || 0;
-      //   usageStats.completionTokens += tokenUsage.completionTokens || 0;
-      //   usageStats.totalTokens += tokenUsage.totalTokens || 0;
-      // }
-      const kind = event.event;
-      console.debug(`[event:${event.event}] ${JSON.stringify(event, null, 2)}`);
-      // if (kind === "on_llm_start") {
-      //   console.log("LLM started");
-      // }
-      if (unimportantMessages.has(kind)) {
-        // do nothing.
-      } else if (kind === "on_llm_end") {
-        console.log("⚙ [on_llm_end]");
-      } else if (kind === "on_tool_start") {
-        console.log(
-          `🔨 [tool_start] [${event.name}]`,
-          truncate(JSON.stringify(event.data?.input?.input), { length: 120 })
-        );
-      } else if (kind === "on_tool_end") {
-        console.log(
-          `🔨 [tool_end] [${event.name}]`,
-          truncate(JSON.stringify(event.data?.output?.content), { length: 120 })
-        );
-      } else if (kind === "on_chain_end") {
-        // console.log("🔨 Chain ended:", event.data?.output);
-        const content =
-          event.data?.output?.content?.filter((c: any) => c.type == "text") ||
-          event.data?.output?.messages?.map((m: any) => m.kwargs) ||
-          event.data?.output;
-        if (content) {
+        // TODO: tokenUsage
+        // const tokenUsage = event.data.output.llmOutput?.tokenUsage;
+        // if (tokenUsage) {
+        //   usageStats.promptTokens += tokenUsage.promptTokens || 0;
+        //   usageStats.completionTokens += tokenUsage.completionTokens || 0;
+        //   usageStats.totalTokens += tokenUsage.totalTokens || 0;
+        // }
+        const kind = event.event;
+        // console.debug(
+        //   `[event:${event.event}] ${JSON.stringify(event, null, 2)}`
+        // );
+        // if (kind === "on_llm_start") {
+        //   console.log("LLM started");
+        // }
+        if (unimportantMessages.has(kind)) {
+          // do nothing.
+        } else if (kind === "on_llm_end") {
+          console.log("⚙ [on_llm_end]");
+        } else if (kind === "on_tool_start") {
           console.log(
-            `🔨 [on_chain_end] ${content
-              .map((c: any) => c.text || JSON.stringify(c, null, 2))
-              .join("\n\n")
-              .trim()}`
+            `🔨 [tool_start] [${event.name}]`,
+            truncate(JSON.stringify(event.data?.input?.input), { length: 120 })
           );
+        } else if (kind === "on_tool_end") {
+          // WARNING: This does not get called on unsuccessful tool calls.
+          //          Instead, "error" (onToolError) should get emitted, but it does not seem to work.
+          console.log(
+            `🔨 [tool_end] [${event.name}]`,
+            truncate(JSON.stringify(event.data?.output?.content), {
+              length: 120,
+            })
+          );
+        } else if (kind === "on_chain_end") {
+          // console.log("🔨 Chain ended:", event.data?.output);
+          const content =
+            event.data?.output?.content?.filter((c: any) => c.type == "text") ||
+            event.data?.output?.messages?.map((m: any) => m.kwargs) ||
+            event.data?.output;
+          if (
+            content &&
+            Object.values(content).filter((v) => !isEmpty(v)).length
+          ) {
+            const contentStr: string = Array.isArray(content)
+              ? content
+                  .map((c: any) => (c.text as string) || JSON.stringify(c))
+                  .join("\n\n")
+                  .trim()
+              : JSON.stringify(content, null, 2);
+            console.log(
+              `🔨 [on_chain_end] ${contentStr}`
+              // ${content
+              //   .map((c: any) => c.text || )
+              //   )}`
+            );
+          }
+        } else if (kind === "on_agent_finish") {
+          console.log(
+            `⚙ [on_agent_finish]: ${visualizeObjectTree(event.data)}`
+          );
+        } else {
+          console.log(`⚙ [${kind}]`, visualizeObjectTree(event));
         }
-      } else if (kind === "on_agent_finish") {
-        console.log(`⚙ [on_agent_finish]: ${visualizeObjectTree(event.data)}`);
-      } else {
-        console.log(`⚙ [${kind}]`, visualizeObjectTree(event));
+      } catch (err: any) {
+        // WARNING: Don't remove this. We add this console.error because streamEvent swallows exceptions.
+        console.error(`❌ Error processing langchain event: ${err.stack}`);
+        throw err;
       }
     }
   }
@@ -285,12 +320,15 @@ export abstract class EnvTool extends StructuredTool {
 export type EnvToolClass = new (params: EnvToolParams) => EnvTool;
 
 export abstract class FileTool extends EnvTool {
-  protected async resolveFile(relativePath: string): Promise<string> {
+  protected async resolveFile(
+    relativePath: string,
+    checkAccess: boolean = true
+  ): Promise<string> {
     const currentWorkspace = this.env.workspaces.currentWorkspace;
     if (!currentWorkspace) {
       throw new Error("No current workspace selected");
     }
-    return currentWorkspace.resolveFile(relativePath);
+    return currentWorkspace.resolveFile(relativePath, checkAccess);
   }
 }
 
@@ -334,7 +372,7 @@ export class FileWriteTool extends FileTool {
     runManager?: CallbackManagerForToolRun
   ): Promise<string> {
     try {
-      filePath = await this.resolveFile(filePath);
+      filePath = await this.resolveFile(filePath, false);
       await fs.mkdir(path.dirname(filePath), { recursive: true });
       await fs.writeFile(filePath, content, "utf-8");
       return `✅ File "${filePath}" written successfully`;
@@ -419,6 +457,11 @@ function instantiateTools(
   });
 }
 
+enum Provider {
+  OPENAI = "OPENAI",
+  ANTHROPIC = "ANTHROPIC",
+}
+
 // Model manager class (Singleton)
 class ModelManager {
   private static instance: ModelManager;
@@ -439,32 +482,50 @@ class ModelManager {
     return this.models.get(JSON.stringify(config));
   }
 
-  createModel(config: ModelConfig): BaseChatModel {
-    let model: BaseChatModel;
-    const { modelName, temperature, maxTokens } = config;
-
+  private getProvider(modelName: string): Provider {
     if (modelName.startsWith("gpt-")) {
-      const apiKey = process.env.OPENAI_API_KEY;
-      if (!apiKey)
-        throw new Error("OPENAI_API_KEY not found in environment variables");
-      model = new ChatOpenAI({
-        modelName,
-        temperature,
-        maxTokens,
-        openAIApiKey: apiKey,
-      });
+      return Provider.OPENAI;
     } else if (modelName.includes("claude")) {
-      const apiKey = process.env.ANTHROPIC_API_KEY;
-      if (!apiKey)
-        throw new Error("ANTHROPIC_API_KEY not found in environment variables");
-      model = new ChatAnthropic({
-        modelName,
-        temperature,
-        maxTokens,
-        anthropicApiKey: apiKey,
-      });
+      return Provider.ANTHROPIC;
     } else {
       throw new Error(`Unsupported model: ${modelName}`);
+    }
+  }
+
+  private getApiKey(provider: Provider): string {
+    // TODO: Support juggling mutliple conflicting keys.
+    const envVar = `PERSONAL_${provider}_API_KEY`;
+    const apiKey = process.env[envVar];
+    if (!apiKey) {
+      throw new Error(`${envVar} not found in environment variables`);
+    }
+    return apiKey;
+  }
+
+  public createModel(config: ModelConfig): BaseChatModel {
+    const provider = this.getProvider(config.modelName);
+    const apiKey = this.getApiKey(provider);
+
+    const { modelName, temperature, maxOutputTokens: maxTokens } = config;
+
+    let model: BaseChatModel;
+    switch (provider) {
+      case Provider.OPENAI:
+        model = new ChatOpenAI({
+          modelName,
+          temperature,
+          maxTokens,
+          openAIApiKey: apiKey,
+        });
+        break;
+      case Provider.ANTHROPIC:
+        model = new ChatAnthropic({
+          modelName,
+          temperature,
+          maxTokens,
+          anthropicApiKey: apiKey,
+        });
+        break;
     }
 
     this.models.set(JSON.stringify(config), model);
@@ -521,32 +582,67 @@ function visualizeObjectTree(o: any, indent: string = ""): string {
 const modelConfig: ModelConfig = {
   modelName: "claude-3-sonnet-20240229",
   temperature: 0,
-  maxTokens: 10000,
+  maxOutputTokens: 1024, // NOTE: Anthropic's max is 4k
 };
 
+function getAssetPath(assetName: string): string {
+  return path.join(ASSET_DIR, assetName);
+}
+
 async function readPromptFromFile(): Promise<string> {
-  const promptPath = path.join(__dirname, "user_prompt.md");
+  const PROMPT_FILE = "user_prompt.md";
+  const promptPath = getAssetPath(PROMPT_FILE);
   try {
     return await fs.readFile(promptPath, "utf-8");
-  } catch (error) {
-    console.error(`Error reading prompt file: ${error}`);
-    throw error;
+  } catch (error: any) {
+    throw new NestedError(`Error reading prompt file`, error);
   }
 }
 
 async function main() {
+  let i = 1;
   const model = getOrCreateModel(modelConfig);
   const env = new AgentEnvironment();
-
   // Add paai-peon as the only workspace.
-  const peonPath = path.resolve(__dirname, "..");
-  env.workspaces.addWorkspace(peonPath);
-  env.workspaces.setCurrentWorkspace(peonPath);
-
+  env.workspaces.addWorkspace(PEON_ROOT_DIR);
+  env.workspaces.setCurrentWorkspace(PEON_ROOT_DIR);
   const prompt = await readPromptFromFile();
   await env.runPrompt(env, model, prompt);
 }
 
 if (require.main === module) {
-  main();
+  main().catch((error: any) => {
+    console.error(`❌ MAIN FAILURE: ${error?.stack || error}`);
+  });
 }
+
+// monkey-patch process.exit
+process.exit = (...args: any[]) => {
+  console.trace("Exiting...");
+  process.exit(...args);
+};
+
+// Handle unhandled exceptions
+process.on("unhandledRejection", (error: any) => {
+  console.error(`❌ Unhandled promise rejection: ${error?.stack || error}`);
+  process.exit(1);
+});
+
+process.on("uncaughtException", (error: any) => {
+  console.error(`❌ Uncaught exception: ${error?.stack || error}`);
+  process.exit(1);
+});
+
+// setInterval(() => {}, 1 << 30);
+
+// import * as readline from 'readline';
+// const rl = readline.createInterface({
+//   input: process.stdin,
+//   output: process.stdout
+// });
+// console.log('Press Enter to exit...');
+// rl.question('', () => {
+//   console.log('Exiting...');
+//   rl.close();
+//   process.exit(0);
+// });

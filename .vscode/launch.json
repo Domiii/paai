@@ -10,9 +10,9 @@
       "request": "launch",
       "name": "Peon",
 			"cwd": "${workspaceFolder}/packages/peon",
-      "program": "${workspaceFolder}/out/peon/index.js",
+      "program": "${workspaceFolder}/out/packages/peon/index.js",
       "preLaunchTask": "tsc: build peon",
-      "outFiles": ["${workspaceFolder}/out/peon/**/*.js"]
+      "outFiles": ["${workspaceFolder}/out/packages/peon/**/*.js"]
     },
 		{
 			"name": "Run Extension",
@@ -21,9 +21,7 @@
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}"
 			],
-			"outFiles": [
-				"${workspaceFolder}/dist/**/*.js"
-			],
+      "outFiles": ["${workspaceFolder}/out/packages/code/**/*.js"],
 			"preLaunchTask": "${defaultBuildTask}"
 		}
 	]

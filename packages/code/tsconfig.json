@@ -14,7 +14,8 @@
       "node",
       "electron",
       "vscode"
-    ]
+    ],
+    "outDir": "../../out/packages/code"
   },
   "exclude": [
     "node_modules",
