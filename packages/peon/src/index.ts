@@ -22,10 +22,7 @@ import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { z } from "zod";
 import { ErrorMonitorDeco } from "./util/ErrorMonitor";
-import {
-  pathNormalized,
-  pathNormalizedForce
-} from "./util/pathUtil";
+import { pathNormalized, pathNormalizedForce } from "./util/pathUtil";
 
 export interface ModelConfig {
   modelName: string;
