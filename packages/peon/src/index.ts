@@ -174,6 +174,17 @@ export class Workspaces {
   }
 }
 
+const unimportantMessages = new Set([
+  "on_chain_stream",
+  "on_chain_start",
+  "on_prompt_start",
+  "on_prompt_start",
+  "on_prompt_end",
+  "on_chat_model_start",
+  "on_chat_model_stream",
+  "on_chat_model_end",
+]);
+
 export class AgentEnvironment {
   private _workspaces = new Workspaces();
 
@@ -211,9 +222,10 @@ export class AgentEnvironment {
       //   usageStats.totalTokens += tokenUsage.totalTokens || 0;
       // }
       const kind = event.event;
+      console.debug(`[event:${event.event}] ${JSON.stringify(event, null, 2)}`);
       // if (kind === "on_llm_start") {
       //   console.log("LLM started");
-      // } else
+      // }
       if (unimportantMessages.has(kind)) {
         // do nothing.
       } else if (kind === "on_llm_end") {
@@ -230,13 +242,14 @@ export class AgentEnvironment {
         );
       } else if (kind === "on_chain_end") {
         // console.log("🔨 Chain ended:", event.data?.output);
-        const content = event.data?.output?.content?.filter(
-          (c: any) => c.type == "text"
-        );
+        const content =
+          event.data?.output?.content?.filter((c: any) => c.type == "text") ||
+          event.data?.output?.messages?.map((m: any) => m.kwargs) ||
+          event.data?.output;
         if (content) {
           console.log(
             `🔨 [on_chain_end] ${content
-              .map((c: any) => c.text)
+              .map((c: any) => c.text || JSON.stringify(c, null, 2))
               .join("\n\n")
               .trim()}`
           );
@@ -284,7 +297,7 @@ export abstract class FileTool extends EnvTool {
 /**
  * File read tool for reading file contents.
  */
-export class FileReadToolClass extends FileTool {
+export class FileReadTool extends FileTool {
   description = "Read the contents of a file";
   schema = z.object({
     relativePath: z.string().describe("The relative path of the file to read"),
@@ -309,7 +322,7 @@ export class FileReadToolClass extends FileTool {
 /**
  * File write tool for writing content to a file.
  */
-export class FileWriteToolClass extends FileTool {
+export class FileWriteTool extends FileTool {
   description = "Write content to a file";
   schema = z.object({
     filePath: z.string().describe("The relative path of the file to write"),
@@ -388,8 +401,8 @@ export class ListFilesTool extends FileTool {
 }
 
 export const AllToolClasses: EnvToolClass[] = [
-  FileReadToolClass,
-  FileWriteToolClass,
+  FileReadTool,
+  FileWriteTool,
   // SelectWorkspaceTool,
   ListFilesTool,
 ];
@@ -505,21 +518,10 @@ function visualizeObjectTree(o: any, indent: string = ""): string {
   return lines.join("\n");
 }
 
-const unimportantMessages = new Set([
-  "on_chain_stream",
-  "on_chain_start",
-  "on_prompt_start",
-  "on_prompt_start",
-  "on_prompt_end",
-  "on_chat_model_start",
-  "on_chat_model_stream",
-  "on_chat_model_end",
-]);
-
 const modelConfig: ModelConfig = {
   modelName: "claude-3-sonnet-20240229",
-  temperature: 0.7,
-  maxTokens: 1000,
+  temperature: 0,
+  maxTokens: 10000,
 };
 
 async function readPromptFromFile(): Promise<string> {

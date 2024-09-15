@@ -23,7 +23,8 @@
       "*": [
         "src/*"
       ]
-    }
+    },
+    "outDir": "../../out/peon"
   },
   "exclude": [
     "node_modules",
