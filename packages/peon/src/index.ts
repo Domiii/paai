@@ -16,10 +16,6 @@ import { ChatOpenAI } from "@langchain/openai";
 import truncate from "lodash/truncate";
 import isEmpty from "lodash/isEmpty";
 
-const MONOREPO_ROOT_DIR = path.resolve(__dirname, "../../..");
-const PEON_ROOT_DIR = path.resolve(MONOREPO_ROOT_DIR, "packages/peon");
-const ASSET_DIR = path.resolve(PEON_ROOT_DIR, "assets");
-
 // Load .secret.env file
 dotenv.config({ path: path.resolve(MONOREPO_ROOT_DIR, ".secret.env") });
 
@@ -29,6 +25,8 @@ import { z } from "zod";
 import { ErrorMonitorDeco } from "./util/ErrorMonitor";
 import { pathNormalized, pathNormalizedForce } from "./util/pathUtil";
 import NestedError from "./util/NestedError";
+import { MONOREPO_ROOT_DIR, PEON_ROOT_DIR } from "./paths";
+import { getAssetPath } from "./assets";
 
 export interface ModelConfig {
   modelName: string;
@@ -585,11 +583,7 @@ const modelConfig: ModelConfig = {
   maxOutputTokens: 1024, // NOTE: Anthropic's max is 4k
 };
 
-function getAssetPath(assetName: string): string {
-  return path.join(ASSET_DIR, assetName);
-}
-
-async function readPromptFromFile(): Promise<string> {
+async function readUserPromptFile(): Promise<string> {
   const PROMPT_FILE = "user_prompt.md";
   const promptPath = getAssetPath(PROMPT_FILE);
   try {
@@ -606,7 +600,7 @@ async function main() {
   // Add paai-peon as the only workspace.
   env.workspaces.addWorkspace(PEON_ROOT_DIR);
   env.workspaces.setCurrentWorkspace(PEON_ROOT_DIR);
-  const prompt = await readPromptFromFile();
+  const prompt = await readUserPromptFile();
   await env.runPrompt(env, model, prompt);
 }
 
