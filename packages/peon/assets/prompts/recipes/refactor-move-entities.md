@@ -3,7 +3,7 @@
 
 ## Instructions
 
-Your job is to refactor `index.ts` into multiple files and folders:
+Refactor `index.ts` into multiple files and folders:
 
 * Create a list of all top-level entities in `index.ts`. Annotate each entity with tags that best describe the entity.
 * Create a JSON structure to represent the file tree, where each entity is in its own file, unless it is very small. For each file, list:

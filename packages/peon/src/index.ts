@@ -24,9 +24,8 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { z } from "zod";
 import { ErrorMonitorDeco } from "./util/ErrorMonitor";
 import { pathNormalized, pathNormalizedForce } from "./util/pathUtil";
-import NestedError from "./util/NestedError";
 import { MONOREPO_ROOT_DIR, PEON_ROOT_DIR } from "./paths";
-import { getAssetPath } from "./assets";
+import { readUserPromptFile } from "./prompts";
 
 export interface ModelConfig {
   modelName: string;
@@ -583,18 +582,7 @@ const modelConfig: ModelConfig = {
   maxOutputTokens: 1024, // NOTE: Anthropic's max is 4k
 };
 
-async function readUserPromptFile(): Promise<string> {
-  const PROMPT_FILE = "user_prompt.md";
-  const promptPath = getAssetPath(PROMPT_FILE);
-  try {
-    return await fs.readFile(promptPath, "utf-8");
-  } catch (error: any) {
-    throw new NestedError(`Error reading prompt file`, error);
-  }
-}
-
 async function main() {
-  let i = 1;
   const model = getOrCreateModel(modelConfig);
   const env = new AgentEnvironment();
   // Add paai-peon as the only workspace.
