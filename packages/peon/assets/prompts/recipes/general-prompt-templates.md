@@ -1,0 +1,1 @@
+* "Ask for clarifications where things are unsure, are ambiguous or might lead to bad quality code."

@@ -15,9 +15,12 @@
     "@langchain/community": "^0.2.32",
     "@langchain/core": "^0.2.31",
     "@langchain/langgraph": "^0.2.2",
+    "@types/inquirer": "^9.0.7",
+    "chalk": "4",
     "common-ancestor-path": "^1.0.1",
     "dotenv": "^16.4.5",
     "glob": "^11.0.0",
+    "inquirer": "^11.0.2",
     "langchain": "^0.2.18",
     "lodash": "^4.17.21"
   },
