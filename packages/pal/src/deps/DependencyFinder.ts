@@ -1,4 +1,6 @@
 
 export default class DependencyFinder {
-  // TODO: Probably use tree-sitter to find modules, file-wide top-level dependencies.
+  // TODO: Create SymbolGraph of a given file.
+  // TODO: Iterate all files in project.
+  // TODO: File indexing.
 }

@@ -333,9 +333,9 @@ export abstract class FileTool extends EnvTool {
  * File read tool for reading file contents.
  */
 export class FileReadTool extends FileTool {
-  description = "Read the contents of a file";
+  description = "Read the contents of a file. Each line is prepended with `LINE_NO: `";
   schema = z.object({
-    relativePath: z.string().describe("The relative path of the file to read"),
+    relativePath: z.string().describe("The relative path of the file"),
   });
 
   protected async _call(
@@ -345,7 +345,16 @@ export class FileReadTool extends FileTool {
     try {
       const filePath = await this.resolveFile(arg.relativePath);
       const content = await fs.readFile(filePath, "utf-8");
-      return content;
+      const lines = content.split("\n");
+      const totalLines = lines.length;
+      const paddingWidth = totalLines.toString().length;
+
+      const numberedLines = lines.map((line, index) => {
+        const lineNumber = (index + 1).toString().padStart(paddingWidth, "0");
+        return `${lineNumber}: ${line}`;
+      });
+
+      return numberedLines.join("\n");
     } catch (error: any) {
       throw new Error(
         `❌ Error reading file "${arg.relativePath}": ${error.stack}`
@@ -358,23 +367,124 @@ export class FileReadTool extends FileTool {
  * File write tool for writing content to a file.
  */
 export class FileWriteTool extends FileTool {
-  description = "Write content to a file";
+  description = "Write content to a file, optionally specifying line range";
   schema = z.object({
-    filePath: z.string().describe("The relative path of the file to write"),
-    content: z.string().describe("The content to write to the file"),
+    filePath: z.string().describe("The relative path of the file"),
+    content: z.string().describe("The RAW content, written to file as-is"),
+    lineFrom: z.number().optional().describe("Starting line number (1-based, inclusive)"),
+    lineTo: z.number().optional().describe("Ending line number (1-based, inclusive)"),
   });
 
   protected async _call(
-    { filePath, content }: z.infer<typeof this.schema>,
+    { filePath, content, lineFrom, lineTo }: z.infer<typeof this.schema>,
     runManager?: CallbackManagerForToolRun
   ): Promise<string> {
     try {
       filePath = await this.resolveFile(filePath, false);
+      
+      // If lineFrom and lineTo are not provided, write the entire content
+      if (lineFrom === undefined && lineTo === undefined) {
+        await fs.mkdir(path.dirname(filePath), { recursive: true });
+        await fs.writeFile(filePath, content, "utf-8");
+        return `✅ File "${filePath}" written successfully`;
+      }
+
+      // Read existing content if we're updating a range
+      let existingContent = "";
+      try {
+        existingContent = await fs.readFile(filePath, "utf-8");
+      } catch (error) {
+        // File doesn't exist, which is fine if we're writing new content
+      }
+
+      const lines = existingContent.split("\n");
+      const newLines = content.split("\n");
+
+      // Validate line numbers
+      if (lineFrom !== undefined && (lineFrom < 1 || lineFrom > lines.length + 1)) {
+        throw new Error(`Invalid lineFrom: ${lineFrom}. File has ${lines.length} lines.`);
+      }
+      if (lineTo !== undefined && (lineTo < lineFrom! || lineTo > lines.length + newLines.length)) {
+        throw new Error(`Invalid lineTo: ${lineTo}. Must be between ${lineFrom} and ${lines.length + newLines.length}.`);
+      }
+
+      // If only lineFrom is provided, write to the end of the file
+      if (lineFrom !== undefined && lineTo === undefined) {
+        lineTo = lines.length + newLines.length;
+      }
+      // If only lineTo is provided, start from the beginning
+      if (lineFrom === undefined && lineTo !== undefined) {
+        lineFrom = 1;
+      }
+
+      // Update the specified range
+      const beforeRange = lines.slice(0, lineFrom! - 1);
+      const afterRange = lines.slice(lineTo!);
+      const updatedLines = [...beforeRange, ...newLines, ...afterRange];
+
       await fs.mkdir(path.dirname(filePath), { recursive: true });
-      await fs.writeFile(filePath, content, "utf-8");
-      return `✅ File "${filePath}" written successfully`;
+      await fs.writeFile(filePath, updatedLines.join("\n"), "utf-8");
+
+      return `✅ File "${filePath}" updated successfully (lines ${lineFrom}-${lineTo})`;
     } catch (error: any) {
       throw new Error(`❌ Error writing file "${filePath}": ${error.stack}`);
+    }
+  }
+}
+
+/**
+ * File delete tool for deleting content from a file.
+ */
+export class DeleteInFileTool extends FileTool {
+  description = "Delete content from a file, optionally specifying line range";
+  schema = z.object({
+    filePath: z.string().describe("The relative path of the file"),
+    lineFrom: z.number().optional().describe("Starting line number (1-based, inclusive)"),
+    lineTo: z.number().optional().describe("Ending line number (1-based, inclusive)"),
+  });
+
+  protected async _call(
+    { filePath, lineFrom, lineTo }: z.infer<typeof this.schema>,
+    runManager?: CallbackManagerForToolRun
+  ): Promise<string> {
+    try {
+      filePath = await this.resolveFile(filePath, true);
+      
+      let content = await fs.readFile(filePath, "utf-8");
+      const lines = content.split("\n");
+
+      // If lineFrom is not provided, set it to the first line
+      lineFrom = lineFrom ?? 1;
+      
+      // If lineTo is not provided, set it to the last line
+      lineTo = lineTo ?? lines.length;
+
+      // Validate line numbers
+      if (lineFrom < 1 || lineFrom > lines.length) {
+        throw new Error(`Invalid lineFrom: ${lineFrom}. File has ${lines.length} lines.`);
+      }
+      if (lineTo < lineFrom || lineTo > lines.length) {
+        throw new Error(`Invalid lineTo: ${lineTo}. Must be between ${lineFrom} and ${lines.length}.`);
+      }
+
+      // If the lines span the whole file, delete the file
+      if (lineFrom === 1 && lineTo === lines.length) {
+        await fs.unlink(filePath);
+        return `✅ File "${filePath}" deleted successfully`;
+      }
+
+      // Delete the specified range
+      const updatedLines = [
+        ...lines.slice(0, lineFrom - 1),
+        ...lines.slice(lineTo)
+      ];
+
+      // Write the updated content back to the file
+      await fs.writeFile(filePath, updatedLines.join("\n"), "utf-8");
+
+      return `✅ Lines ${lineFrom}-${lineTo} deleted successfully from "${filePath}"`;
+    } catch (error: any) {
+      throw new Error(`❌ Error deleting content from file "${filePath}": ${error.stack}`);
     }
   }
 }
