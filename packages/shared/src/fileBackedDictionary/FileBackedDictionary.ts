@@ -37,7 +37,7 @@ export class FileBackedDictionary<T> {
     await fs.writeFile(this.path, content, 'utf-8');
   }
 
-  async create(key: string, value: T): Promise<void> {
+  async add(key: string, value: T): Promise<void> {
     if (this.data.has(key)) {
       throw new Error(`Key '${key}' already exists`);
     }

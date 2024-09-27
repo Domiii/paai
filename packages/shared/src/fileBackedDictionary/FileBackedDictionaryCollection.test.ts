@@ -1,8 +1,8 @@
 import { FileBackedDictionaryCollection } from './FileBackedDictionaryCollection';
 import { FileBackedDictionaryCLI } from './FileBackedDictionaryCLI';
-import * as os from 'os';
-import * as path from 'path';
-import * as fs from 'fs/promises';
+import os from 'os';
+import path from 'path';
+import fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
 import { spawn } from 'child_process';
 

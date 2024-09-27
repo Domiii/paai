@@ -4,6 +4,7 @@ import fs from 'fs/promises';
 import { Stats } from 'fs';
 import path from 'path';
 import chalk from 'chalk';
+import { FileBackedDictionary } from './FileBackedDictionary';
 
 export class FileBackedDictionaryCLI<T> {
   private folder: FileBackedDictionaryCollection<T>;
@@ -120,14 +121,11 @@ export class FileBackedDictionaryCLI<T> {
     return selected;
   }
 
-  async userPick(): Promise<T | null> {
+  async userPick(): Promise<FileBackedDictionary<T> | null> {
     const key = await this.userPickKey();
     if (key) {
       const dictionary = this.folder.getDictionary(key);
-      if (dictionary) {
-        const value = await dictionary.read(key);
-        return value || null;
-      }
+      return dictionary || null;
     }
     return null;
   }
