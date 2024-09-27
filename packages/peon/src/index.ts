@@ -22,8 +22,8 @@ dotenv.config({ path: path.resolve(MONOREPO_ROOT_DIR, ".secret.env") });
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { z } from "zod";
-import { ErrorMonitorDeco } from "./util/ErrorMonitor";
-import { pathNormalized, pathNormalizedForce } from "./util/pathUtil";
+import { ErrorMonitorDeco } from "@paai/shared/util/ErrorMonitor";
+import { pathNormalized, pathNormalizedForce } from "@paai/shared/util/pathUtil";
 import { MONOREPO_ROOT_DIR, PEON_ROOT_DIR } from "./paths";
 import { readUserPromptFile } from "./prompts";
 

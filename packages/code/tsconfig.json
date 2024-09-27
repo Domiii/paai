@@ -15,8 +15,26 @@
       "electron",
       "vscode"
     ],
-    "outDir": "../../out/packages/code"
+    "baseUrl": ".",
+    "paths": {
+      "*": [
+        "src/*"
+      ],
+      "@paai/shared/*": [
+        "../shared/src/*"
+      ],
+      "@paai/peon/*": [
+        "../peon/src/*"
+      ]
+    },
+    "outDir": "../../out/packages/code",
+    "tsBuildInfoFile": "../../out/packages/code/tsconfig.tsbuildinfo"
   },
+  "include": ["src/**/*"],
+  "references": [
+    { "path": "../shared" },
+    { "path": "../peon" }
+  ],
   "exclude": [
     "node_modules",
     "dist"

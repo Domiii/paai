@@ -1,5 +1,7 @@
 {
   "compilerOptions": {
+    "composite": true,
+    "declaration": true,
     "module": "NodeNext",
     "target": "ES2023",
     "lib": [
@@ -22,10 +24,22 @@
     "paths": {
       "*": [
         "src/*"
+      ],
+      "@paai/shared/*": [
+        "../shared/src/*"
       ]
     },
-    "outDir": "../../out/packages/peon"
+    "outDir": "../../out/packages/peon",
+    "tsBuildInfoFile": "../../out/packages/peon/tsconfig.tsbuildinfo"
   },
+  "include": [
+    "src/**/*"
+  ],
+  "references": [
+    {
+      "path": "../shared"
+    }
+  ],
   "exclude": [
     "node_modules",
     "dist"

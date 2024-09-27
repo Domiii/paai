@@ -18,7 +18,8 @@
     "dotenv": "^16.4.5",
     "glob": "^11.0.0",
     "langchain": "^0.2.18",
-    "lodash": "^4.17.21"
+    "lodash": "^4.17.21",
+    "@paai/shared": "*"
   },
   "devDependencies": {
     "@types/common-ancestor-path": "^1",

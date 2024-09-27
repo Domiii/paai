@@ -1,5 +1,7 @@
 {
   "compilerOptions": {
+    "composite": true,
+    "declaration": true,
     "module": "NodeNext",
     "target": "ES2023",
     "lib": [
@@ -24,7 +26,8 @@
         "src/*"
       ]
     },
-    "outDir": "../../out/packages/shared"
+    "outDir": "../../out/packages/shared",
+    "tsBuildInfoFile": "../../out/packages/shared/tsconfig.tsbuildinfo"
   },
   "exclude": [
     "node_modules",

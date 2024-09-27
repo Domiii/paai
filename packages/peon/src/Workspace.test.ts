@@ -3,7 +3,7 @@ import fs from "fs/promises";
 import path from "path";
 import { glob } from "glob";
 import os from "os";
-import { pathJoin } from "./util/pathUtil";
+import { pathJoin } from "@paai/shared/util/pathUtil";
 
 // jest.mock("glob");
 // describe("Workspace.enumerateFiles", () => {

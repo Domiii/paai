@@ -1,6 +1,6 @@
 import fs from "fs/promises";
 import { getAssetPath } from "./AssetManager";
-import NestedError from "./util/NestedError";
+import NestedError from "@paai/shared/util/NestedError";
 
 export function getPromptPath(promptName: string): string {
   return getAssetPath(`prompts/${promptName}.md`);
