@@ -35,7 +35,7 @@ export class FileBackedDictionaryCollection<T> {
     }
   }
 
-  async createDictionary(name: string): Promise<FileBackedDictionary<T>> {
+  async addDictionary(name: string): Promise<FileBackedDictionary<T>> {
     if (this.dictionaries.has(name)) {
       throw new Error(`Dictionary '${name}' already exists`);
     }

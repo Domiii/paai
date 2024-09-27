@@ -1,10 +1,10 @@
-import inquirer from 'inquirer';
-import { FileBackedDictionaryCollection } from './FileBackedDictionaryCollection';
-import fs from 'fs/promises';
-import { Stats } from 'fs';
-import path from 'path';
-import chalk from 'chalk';
-import { FileBackedDictionary } from './FileBackedDictionary';
+import inquirer from "inquirer";
+import fs from "fs/promises";
+import { Stats } from "fs";
+import path from "path";
+import chalk from "chalk";
+import { FileBackedDictionaryCollection } from "./FileBackedDictionaryCollection";
+import { FileBackedDictionary } from "./FileBackedDictionary";
 
 export class FileBackedDictionaryCLI<T> {
   private folder: FileBackedDictionaryCollection<T>;
@@ -13,74 +13,27 @@ export class FileBackedDictionaryCLI<T> {
     this.folder = folder;
   }
 
-  async renderMenu(): Promise<void> {
-    const choices = [
-      { name: 'Create new dictionary', value: 'create' },
-      { name: 'Select dictionary', value: 'select' },
-      { name: 'Delete dictionary', value: 'delete' },
-      { name: 'Exit', value: 'exit' },
-    ];
-
-    const { action } = await inquirer.prompt([
-      {
-        type: 'list',
-        name: 'action',
-        message: 'What would you like to do?',
-        choices,
-      },
-    ]);
-
-    switch (action) {
-      case 'create':
-        await this.createDictionary();
-        break;
-      case 'select':
-        await this.selectDictionary();
-        break;
-      case 'delete':
-        await this.deleteDictionary();
-        break;
-      case 'exit':
-        console.log('Goodbye!');
-        process.exit(0);
-    }
-
-    await this.renderMenu();
-  }
-
-  private async createDictionary(): Promise<void> {
+  async addDictionary(): Promise<FileBackedDictionary<T>> {
     const { name } = await inquirer.prompt([
       {
-        type: 'input',
-        name: 'name',
-        message: 'Enter the name for the new dictionary:',
-        validate: (input: string) => input.trim() !== '' || 'Name cannot be empty',
+        type: "input",
+        name: "name",
+        message: "Enter the name for the new dictionary:",
+        validate: (input: string) =>
+          input.trim() !== "" || "Name cannot be empty",
       },
     ]);
 
-    try {
-      await this.folder.createDictionary(name);
-      console.log(chalk.green(`Dictionary '${name}' created successfully.`));
-    } catch (err: any) {
-      console.error(chalk.red(`Error creating dictionary: ${err.message}`));
-    }
+    return await this.folder.addDictionary(name);
   }
 
-  private async selectDictionary(): Promise<void> {
-    const key = await this.userPickKey();
-    if (key) {
-      console.log(chalk.green(`Selected dictionary: ${key}`));
-      // Here you can add more actions for the selected dictionary
-    }
-  }
-
-  private async deleteDictionary(): Promise<void> {
+  async deleteDictionary(): Promise<void> {
     const key = await this.userPickKey();
     if (key) {
       const { confirm } = await inquirer.prompt([
         {
-          type: 'confirm',
-          name: 'confirm',
+          type: "confirm",
+          name: "confirm",
           message: `Are you sure you want to delete the dictionary '${key}'?`,
           default: false,
         },
@@ -102,15 +55,15 @@ export class FileBackedDictionaryCLI<T> {
     const sortedEntries = await this.getSortedEntries(dictionaries);
 
     if (sortedEntries.length === 0) {
-      console.log(chalk.yellow('No dictionaries available.'));
+      console.log(chalk.yellow("No dictionaries available."));
       return null;
     }
 
     const { selected } = await inquirer.prompt([
       {
-        type: 'list',
-        name: 'selected',
-        message: 'Select a dictionary:',
+        type: "list",
+        name: "selected",
+        message: "Select a dictionary:",
         choices: sortedEntries.map(([key, stats]) => ({
           name: `${key} (Last modified: ${stats.mtime.toLocaleString()})`,
           value: key,
@@ -130,10 +83,14 @@ export class FileBackedDictionaryCLI<T> {
     return null;
   }
 
-  private async getSortedEntries(dictionaries: Map<string, any>): Promise<[string, Stats][]> {
+  private async getSortedEntries(
+    dictionaries: Map<string, any>
+  ): Promise<[string, Stats][]> {
     const entries: [string, Stats][] = await Promise.all(
       Array.from(dictionaries.keys()).map(async (key) => {
-        const stats = await fs.stat(path.join(this.folder.path, `${key}.jsonl`));
+        const stats = await fs.stat(
+          path.join(this.folder.path, `${key}.jsonl`)
+        );
         return [key, stats];
       })
     );

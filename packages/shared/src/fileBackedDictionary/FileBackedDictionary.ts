@@ -1,5 +1,6 @@
-import fs from 'fs/promises';
-import path from 'path';
+import fs from "fs/promises";
+import path from "path";
+import { readFileOrNull } from "../util/fsUtil";
 
 export class FileBackedDictionary<T> {
   private data: Map<string, T>;
@@ -15,26 +16,23 @@ export class FileBackedDictionary<T> {
   }
 
   private async load(): Promise<void> {
-    try {
-      const content = await fs.readFile(this.path, 'utf-8');
-      const lines = content.split('\n').filter(line => line.trim() !== '');
-      for (const line of lines) {
-        const [key, value] = JSON.parse(line);
-        this.data.set(key, value);
-      }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        throw error;
-      }
-      // File doesn't exist, start with an empty dictionary
+    const content = await readFileOrNull(this.path);
+    if (!content) {
+      // File doesn't exist: start with an empty dictionary.
+      return;
+    }
+    const lines = content.split("\n").filter((line) => line.trim() !== "");
+    for (const line of lines) {
+      const [key, value] = JSON.parse(line);
+      this.data.set(key, value);
     }
   }
 
   private async save(): Promise<void> {
     const content = Array.from(this.data.entries())
-      .map(entry => JSON.stringify(entry))
-      .join('\n');
-    await fs.writeFile(this.path, content, 'utf-8');
+      .map((entry) => JSON.stringify(entry))
+      .join("\n");
+    await fs.writeFile(this.path, content, "utf-8");
   }
 
   async add(key: string, value: T): Promise<void> {
@@ -45,7 +43,7 @@ export class FileBackedDictionary<T> {
     await this.save();
   }
 
-  async read(key: string): Promise<T | undefined> {
+  async get(key: string): Promise<T | undefined> {
     return this.data.get(key);
   }
 
