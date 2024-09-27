@@ -6239,6 +6239,7 @@ __metadata:
     "@types/node": "npm:^22.5.4"
     "@types/vscode": "npm:^1.93.0"
     eslint: "npm:^9.10.0"
+    jest: "npm:^29.7.0"
     typescript: "npm:^5.5.4"
   languageName: unknown
   linkType: soft
