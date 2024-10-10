@@ -87,7 +87,7 @@ export class Workspace {
       ignore: ["**/.git/**", "**/node_modules/**"],
     };
 
-    if (!globPattern.startsWith("/") && !globPattern.startsWith("*")) {
+    if (!globPattern.startsWith("/") && !globPattern.startsWith("**")) {
       globPattern = `**/${globPattern}`;
     }
 
