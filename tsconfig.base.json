@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "module": "NodeNext",
+    "target": "ES2023",
+    "lib": [
+      "ES2023"
+    ],
+    "sourceMap": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "NodeNext",
+    "types": [
+      "node",
+      "jest"
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "*": [
+        "src/*"
+      ],
+      "@paai/peon/*": [
+        "packages/peon/src/*"
+      ],
+      "@paai/shared/*": [
+        "packages/shared/src/*"
+      ]
+    }
+  }
+}

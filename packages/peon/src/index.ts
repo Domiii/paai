@@ -16,9 +16,6 @@ import { ChatOpenAI } from "@langchain/openai";
 import truncate from "lodash/truncate";
 import isEmpty from "lodash/isEmpty";
 
-// Load .secret.env file
-dotenv.config({ path: path.resolve(MONOREPO_ROOT_DIR, ".secret.env") });
-
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { z } from "zod";
@@ -29,6 +26,10 @@ import {
 } from "@paai/shared/util/pathUtil";
 import { MONOREPO_ROOT_DIR, PEON_ROOT_DIR } from "./paths";
 import { readUserPromptFile } from "./prompts";
+
+
+// Load .secret.env file
+dotenv.config({ path: path.resolve(MONOREPO_ROOT_DIR, ".secret.env") });
 
 export interface ModelConfig {
   modelName: string;
@@ -615,6 +616,7 @@ export class ListFilesTool extends FileTool {
 export const AllToolClasses: EnvToolClass[] = [
   FileReadTool,
   FileWriteTool,
+  DeleteInFileTool,
   // SelectWorkspaceTool,
   ListFilesTool,
 ];
