@@ -6,12 +6,13 @@
 	"version": "0.2.0",
 	"configurations": [
     {
+      "name": "Peon",
       "type": "node",
       "request": "launch",
-      "name": "Peon",
+			"args": ["-r tsconfig-paths/register"],
 			"cwd": "${workspaceFolder}/packages/peon",
       "program": "${workspaceFolder}/out/packages/peon/index.js",
-      "preLaunchTask": "tsc: build peon",
+      "preLaunchTask": "build_paai",
       "outFiles": ["${workspaceFolder}/out/packages/peon/**/*.js"]
     },
 		{

@@ -37,13 +37,19 @@
 			"problemMatcher": []
 		},
 		{
-			"type": "typescript",
-			"tsconfig": "packages/peon/tsconfig.json",
+			"type": "shell",
+			"label": "build_paai",
+			"command": "yarn",
+			"args": [
+				"tsc",
+				"-b",
+				"packages/shared",
+				"packages/peon"
+			],
 			"problemMatcher": [
 				"$tsc"
 			],
-			"group": "build",
-			"label": "tsc: build peon"
+			"group": "build"
 		}
 	]
 }

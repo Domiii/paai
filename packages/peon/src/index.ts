@@ -19,14 +19,14 @@ import isEmpty from "lodash/isEmpty";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { z } from "zod";
-import { ErrorMonitorDeco } from "@paai/shared/util/ErrorMonitor";
+import { ErrorMonitor, ErrorMonitorDeco } from "@paai/shared/util/ErrorMonitor";
 import {
   pathNormalized,
   pathNormalizedForce,
 } from "@paai/shared/util/pathUtil";
 import { MONOREPO_ROOT_DIR, PEON_ROOT_DIR } from "./paths";
 import { readUserPromptFile } from "./prompts";
-
+import { inspect } from "util";
 
 // Load .secret.env file
 dotenv.config({ path: path.resolve(MONOREPO_ROOT_DIR, ".secret.env") });
@@ -86,6 +86,10 @@ export class Workspace {
       posix: true,
       ignore: ["**/.git/**", "**/node_modules/**"],
     };
+
+    if (!globPattern.startsWith("/") && !globPattern.startsWith("*")) {
+      globPattern = `**/${globPattern}`;
+    }
 
     const files = (await glob(globPattern, options)) || [];
 
@@ -200,6 +204,7 @@ const unimportantMessages = new Set([
 
 export class AgentEnvironment {
   private _workspaces = new Workspaces();
+  readonly monitor = new ErrorMonitor();
 
   constructor() {}
 
@@ -207,7 +212,7 @@ export class AgentEnvironment {
     return this._workspaces;
   }
 
-  @ErrorMonitorDeco()
+  @ErrorMonitorDeco(AgentEnvironment, "monitor")
   async runPrompt(
     env: AgentEnvironment,
     model: BaseChatModel,
@@ -226,6 +231,8 @@ export class AgentEnvironment {
       { version: "v2" }
     )) {
       try {
+        this.monitor.addContext(event);
+
         // console.log(`DDBG streamEvents: ${visualizeObjectTree(event)}`);
 
         // TODO: tokenUsage
@@ -268,6 +275,7 @@ export class AgentEnvironment {
             event.data?.output;
           if (
             content &&
+            !content.config?.tags?.includes("langsmith:hidden") &&
             Object.values(content).filter((v) => !isEmpty(v)).length
           ) {
             const contentStr: string = Array.isArray(content)
@@ -311,6 +319,7 @@ export class EnvToolParams implements ToolParams {
 export abstract class EnvTool extends StructuredTool {
   env!: AgentEnvironment;
   name!: string;
+  verboseParsingErrors = true;
 
   init(params: EnvToolParams) {
     this.name = this.constructor.name.replaceAll("Tool", "");
@@ -584,12 +593,14 @@ export class ListFilesTool extends FileTool {
   schema = z.object({
     globPattern: z
       .string()
-      .optional()
-      .describe("Glob pattern to filter files. Default is '*'"),
+      // .optional()
+      .describe(
+        "Glob pattern to filter files. If you want to list all files, use '**/*'"
+      ),
   });
 
   protected async _call(
-    { globPattern = "*" }: { globPattern: string },
+    { globPattern = "**/*" }: { globPattern: string },
     runManager?: CallbackManagerForToolRun
   ): Promise<string> {
     try {
