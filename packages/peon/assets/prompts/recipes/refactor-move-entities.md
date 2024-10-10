@@ -9,10 +9,10 @@
 
 ## TODO
 
-1. Create an `entities` TABLE artifact of all entities `e` to be moved from FILE0 to a new file `file_e`. The rows should be in descending order of `line_no`, so when moving the first entity, it won't affect the other entities. Columns:
+1. [artifact] Create an `entities` TABLE artifact of all entities `e` to be moved from FILE0 to a new file `file_e`. The rows should be in descending order of `line_no`, so when moving the first entity, it won't affect the other entities. Columns:
    * `entity` - Name of the entity to be moved.
    * `line_no` - First line number of entity in FILE0.
-2. Create a `file_tree` TABLE artifact to contain one row per new file. Columns:
+2. [artifact] Create a `file_tree` TABLE artifact to contain one row per new file. Columns:
   * `name` - File name.
   * `tags` - Relevant categorical tags. These should be used to determine the folder structure for the new files. Tags are allowed to be hierarchical. Tags should be ordered from "most important" to "least important" to clearly communicate which tags to prefer when determining the folder structure.
   * `contains` - List of `entities` that were moved into this file.
