@@ -1575,6 +1575,7 @@ __metadata:
     "@langchain/community": "npm:^0.2.32"
     "@langchain/core": "npm:^0.2.31"
     "@langchain/langgraph": "npm:^0.2.2"
+    "@paai/shared": "npm:*"
     "@types/common-ancestor-path": "npm:^1"
     "@types/jest": "npm:^29.5.12"
     "@types/lodash": "npm:^4"
@@ -1592,7 +1593,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@paai/shared@workspace:packages/shared":
+"@paai/shared@npm:*, @paai/shared@workspace:packages/shared":
   version: 0.0.0-use.local
   resolution: "@paai/shared@workspace:packages/shared"
   dependencies:
