@@ -793,9 +793,10 @@ if (require.main === module) {
  * ##########################################################################*/
 
 // monkey-patch process.exit
+const processExit = process.exit;
 process.exit = (...args: any[]) => {
   console.trace("Exiting...");
-  process.exit(...args);
+  return processExit(...args) as never;
 };
 
 // Handle unhandled exceptions
