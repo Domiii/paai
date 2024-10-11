@@ -9,11 +9,14 @@
       "name": "Peon",
       "type": "node",
       "request": "launch",
-			"args": ["-r tsconfig-paths/register"],
+			// "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/ts-node",
+			"runtimeExecutable": "${workspaceRoot}/node_modules/.bin/tsx",
+			"runtimeArgs": [
+				"-r",
+				"tsconfig-paths/register"
+			],
 			"cwd": "${workspaceFolder}/packages/peon",
-      "program": "${workspaceFolder}/out/packages/peon/index.js",
-      "preLaunchTask": "build_paai",
-      "outFiles": ["${workspaceFolder}/out/packages/peon/**/*.js"]
+			"program": "src/index.ts",
     },
 		{
 			"name": "Run Extension",

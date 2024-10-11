@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "composite": true,
+    "declarationMap": true,
     "declaration": true,
     "module": "NodeNext",
     "target": "ES2023",
