@@ -4,6 +4,9 @@ import { PEON_ROOT_DIR } from "./paths";
 
 const ASSET_DIR = path.resolve(PEON_ROOT_DIR, "assets");
 
+/**
+ * Manages Peon's own assets.
+ */
 export class AssetManager {
   private assetDirs: string[] = [];
 
