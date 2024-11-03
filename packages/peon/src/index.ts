@@ -211,8 +211,15 @@ export class AgentEnvironment {
     return this._workspaces;
   }
 
+  async mutiStepPrompt() {
+    // TODO: Take multiple prompts and run them in sequence.
+    // TODO: Allow interspersing prompt steps with validation/verification/valuation steps.
+    // TODO: Move the prompt (`streamEvents`) loop into their own classes.
+    // TODO: Update to latest langchain (0.3+).
+  }
+
   @ErrorMonitorDeco(AgentEnvironment, "monitor")
-  async runPrompt(
+  async singlePrompt(
     env: AgentEnvironment,
     model: BaseChatModel,
     promptText: string
@@ -778,7 +785,7 @@ async function main() {
   env.workspaces.addWorkspace(PEON_ROOT_DIR);
   env.workspaces.setCurrentWorkspace(PEON_ROOT_DIR);
   const prompt = await readUserPromptFile();
-  await env.runPrompt(env, model, prompt);
+  await env.singlePrompt(env, model, prompt);
 }
 
 if (require.main === module) {
