@@ -26,7 +26,6 @@ import {
 } from "@paai/shared/util/pathUtil";
 import { MONOREPO_ROOT_DIR, PEON_ROOT_DIR } from "./paths";
 import { readUserPromptFile } from "./prompts";
-import { inspect } from "util";
 
 // Load .secret.env file
 dotenv.config({ path: path.resolve(MONOREPO_ROOT_DIR, ".secret.env") });
