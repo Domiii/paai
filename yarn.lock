@@ -1780,24 +1780,24 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@paai/pal@workspace:packages/pal"
   dependencies:
-    "@langchain/anthropic": "npm:^0.2.17"
-    "@langchain/community": "npm:^0.2.32"
-    "@langchain/core": "npm:^0.2.31"
-    "@langchain/langgraph": "npm:^0.2.2"
+    "@paai/shared": "workspace:*"
     "@types/common-ancestor-path": "npm:^1"
     "@types/jest": "npm:^29.5.12"
     "@types/lodash": "npm:^4"
-    "@types/node": "npm:^22.5.4"
+    "@types/node": "npm:^22.7.5"
     common-ancestor-path: "npm:^1.0.1"
     dotenv: "npm:^16.4.5"
     eslint: "npm:^9.10.0"
     glob: "npm:^11.0.0"
     jest: "npm:^29.7.0"
     jest-extended: "npm:^4.0.2"
-    langchain: "npm:^0.2.18"
     lodash: "npm:^4.17.21"
+    tree-sitter: "npm:^0.22.0"
+    tree-sitter-typescript: "npm:^0.23.0"
     ts-jest: "npm:^29.2.5"
-    typescript: "npm:^5.5.4"
+    ts-node: "npm:^10.9.2"
+    tsconfig-paths: "npm:^4.2.0"
+    typescript: "npm:^5.6.3"
   languageName: unknown
   linkType: soft
 
@@ -6476,6 +6476,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"node-addon-api@npm:^8.1.0, node-addon-api@npm:^8.2.1":
+  version: 8.2.2
+  resolution: "node-addon-api@npm:8.2.2"
+  dependencies:
+    node-gyp: "npm:latest"
+  checksum: 10c0/0afc164e407aebaa0114bc5fa04133af6fb024139f9af4d95b82adebe9b70e4156d30b2cf71884254cae4749183620dd8a5019c8e16b1f15d730df205413675b
+  languageName: node
+  linkType: hard
+
 "node-domexception@npm:1.0.0":
   version: 1.0.0
   resolution: "node-domexception@npm:1.0.0"
@@ -6494,6 +6503,17 @@ __metadata:
     encoding:
       optional: true
   checksum: 10c0/b55786b6028208e6fbe594ccccc213cab67a72899c9234eb59dba51062a299ea853210fcf526998eaa2867b0963ad72338824450905679ff0fa304b8c5093ae8
+  languageName: node
+  linkType: hard
+
+"node-gyp-build@npm:^4.8.2":
+  version: 4.8.2
+  resolution: "node-gyp-build@npm:4.8.2"
+  bin:
+    node-gyp-build: bin.js
+    node-gyp-build-optional: optional.js
+    node-gyp-build-test: build-test.js
+  checksum: 10c0/d816b43974d31d6257b6e87d843f2626c72389a285208394bc57a7766b210454d2642860a5e5b5c333d8ecabaeabad3b31b94f58cf8ca1aabdef0c320d02baaa
   languageName: node
   linkType: hard
 
@@ -7782,6 +7802,33 @@ __metadata:
   version: 0.0.3
   resolution: "tr46@npm:0.0.3"
   checksum: 10c0/047cb209a6b60c742f05c9d3ace8fa510bff609995c129a37ace03476a9b12db4dbf975e74600830ef0796e18882b2381fb5fb1f6b4f96b832c374de3ab91a11
+  languageName: node
+  linkType: hard
+
+"tree-sitter-typescript@npm:^0.23.0":
+  version: 0.23.0
+  resolution: "tree-sitter-typescript@npm:0.23.0"
+  dependencies:
+    node-addon-api: "npm:^8.1.0"
+    node-gyp: "npm:latest"
+    node-gyp-build: "npm:^4.8.2"
+  peerDependencies:
+    tree-sitter: ^0.21.0
+  peerDependenciesMeta:
+    tree_sitter:
+      optional: true
+  checksum: 10c0/ba8ef0aba590b71356a764f75bcc6033519f9deae71da24bf4b1ed467d9bbd373907c433a884a8afa708b82ed58b7ce0d848bc8a96a82952560bd679af1f460a
+  languageName: node
+  linkType: hard
+
+"tree-sitter@npm:^0.22.0":
+  version: 0.22.0
+  resolution: "tree-sitter@npm:0.22.0"
+  dependencies:
+    node-addon-api: "npm:^8.2.1"
+    node-gyp: "npm:latest"
+    node-gyp-build: "npm:^4.8.2"
+  checksum: 10c0/465a063edaf9375ab99852b0ba406d58e4d25223281e4bf2af617fb028c418466d685a7395ad32f76ec69f2e182c30b0af6b617466107afbbc94bf200826fdbf
   languageName: node
   linkType: hard
 
