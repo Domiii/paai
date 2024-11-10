@@ -1,27 +1,6 @@
 import Parser from "tree-sitter";
 import TypeScript from "tree-sitter-typescript";
-
-// function getAllExpressionNodes(code: string): Parser.SyntaxNode[] {
-//   const parser = new Parser();
-//   parser.setLanguage(TypeScript.typescript);
-
-//   const tree = parser.parse(code);
-//   const expressions: Parser.SyntaxNode[] = [];
-
-//   function traverse(node: Parser.SyntaxNode) {
-//     console.log("traverse node:", node.constructor.name);
-//     if (node.type.includes("expression")) {
-//       expressions.push(node);
-//     }
-
-//     for (let child of node.children) {
-//       traverse(child);
-//     }
-//   }
-
-//   traverse(tree.rootNode);
-//   return expressions;
-// }
+import { inspect } from "util";
 
 function getAllExpressionNodes(code: string): Parser.SyntaxNode[] {
   const parser = new Parser();
@@ -36,7 +15,7 @@ function getAllExpressionNodes(code: string): Parser.SyntaxNode[] {
   // Grammar definitions:
   //    https://github.com/tree-sitter/tree-sitter-python/blob/master/grammar.js#L354
   //    https://github.com/tree-sitter/tree-sitter-typescript/blob/master/common/define-grammar.js#L3
-  const q = `(expression) @expression`;
+  const q = `(declaration (_) @decl)`;
   const query = new Parser.Query(parser.getLanguage(), q);
 
   for (const match of query.matches(tree.rootNode)) {
@@ -59,15 +38,9 @@ const expressionNodes = getAllExpressionNodes(code);
 // Pretty print the results
 console.log(`Found ${expressionNodes.length} Expression Nodes:`);
 expressionNodes.forEach((node, i) => {
-  console.log(
-    `${(i + "").padStart(3, "0")} ${node.text}`,
-    JSON.stringify({
-      type: node.type,
-      startPosition: {
-        row: node.startPosition.row,
-        column: node.startPosition.column,
-      },
-      parent: node.parent?.type || "none",
-    })
+  console.group(
+    `${(i + "").padStart(3, "0")} ${node.text}`
   );
+  console.log(inspect(node));
+  console.groupEnd();
 });
