@@ -32,9 +32,11 @@ function getAllExpressionNodes(code: string): Parser.SyntaxNode[] {
   const expressions: Parser.SyntaxNode[] = [];
 
   // https://tree-sitter.github.io/tree-sitter/playground
-  const q = `(call_expression
-  function: (_) @the-function
-  arguments: (_) @args)`;
+  // https://tree-sitter.github.io/tree-sitter/using-parsers#pattern-matching-with-queries
+  // Grammar definitions:
+  //    https://github.com/tree-sitter/tree-sitter-python/blob/master/grammar.js#L354
+  //    https://github.com/tree-sitter/tree-sitter-typescript/blob/master/common/define-grammar.js#L3
+  const q = `(expression) @expression`;
   const query = new Parser.Query(parser.getLanguage(), q);
 
   for (const match of query.matches(tree.rootNode)) {
@@ -55,20 +57,17 @@ private _isFrameBoundary(nodeId: string): boolean {
 const expressionNodes = getAllExpressionNodes(code);
 
 // Pretty print the results
-console.log("Found Expression Nodes:");
-expressionNodes.forEach((node, index) => {
-  console.log(`\nExpression #${index + 1}:`);
-  console.log({
-    type: node.type,
-    text: node.text,
-    startPosition: {
-      row: node.startPosition.row,
-      column: node.startPosition.column,
-    },
-    endPosition: {
-      row: node.endPosition.row,
-      column: node.endPosition.column,
-    },
-    parent: node.parent?.type || "none",
-  });
+console.log(`Found ${expressionNodes.length} Expression Nodes:`);
+expressionNodes.forEach((node, i) => {
+  console.log(
+    `${(i + "").padStart(3, "0")} ${node.text}`,
+    JSON.stringify({
+      type: node.type,
+      startPosition: {
+        row: node.startPosition.row,
+        column: node.startPosition.column,
+      },
+      parent: node.parent?.type || "none",
+    })
+  );
 });
