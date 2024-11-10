@@ -58,8 +58,26 @@ private _isFrameBoundary(nodeId: string): boolean {
 }`;
 
 
-// Get ids:
+// Build symbol table and scope trees:
 //   https://chatgpt.com/c/67307fc5-0550-8000-83f3-8e7f22eee941
+
+// Note:
+// How Language Servers Use Tree-sitter
+// Language servers (like those used in VSCode) utilize Tree-sitter for parsing but implement additional layers for semantic analysis:
+
+// Parsing: Tree-sitter provides fast and incremental parsing to generate syntax trees.
+
+// Semantic Analysis: Language servers build upon these trees to perform symbol resolution, type inference, and other analyses.
+
+// Features Implementation: Using semantic information, they provide features like "Go to Definition," "Find References," and code completion.
+
+// Example:
+
+// Tree-sitter in Language Servers: The nvim-treesitter project integrates Tree-sitter into Neovim, providing syntax highlighting and code navigation features.
+
+// Symbol Resolution: Language servers often have dedicated components that handle symbol tables, scopes, and type information.
+
+
 
 for (const queryName of allQueryNames) {
   queryNodes(code, queryName);
