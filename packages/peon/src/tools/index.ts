@@ -1,10 +1,12 @@
-export * from "./base";
-export * from "./file";
-export * from "./workspace";
+import type EnvTool from "./EnvTool";
+import type EnvToolParams from "./EnvToolParams";
+export type EnvToolClass = new (params: EnvToolParams) => EnvTool;
 
-import { EnvToolClass } from "./base";
-import { FileReadTool, FileWriteTool, DeleteInFileTool } from "./file";
-import { SelectWorkspaceTool, ListFilesTool } from "./workspace";
+import FileReadTool from "./FileReadTool";
+import FileWriteTool from "./FileWriteTool";
+import DeleteInFileTool from "./DeleteInFileTool";
+import SelectWorkspaceTool from "./SelectWorkspaceTool";
+import ListFilesTool from "./ListFilesTool";
 
 export const AllToolClasses: EnvToolClass[] = [
   FileReadTool,
@@ -12,4 +14,4 @@ export const AllToolClasses: EnvToolClass[] = [
   DeleteInFileTool,
   SelectWorkspaceTool,
   ListFilesTool,
-]; 
+];

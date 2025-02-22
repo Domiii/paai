@@ -1,29 +1,8 @@
 import { z } from "zod";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
-import { EnvTool, FileTool } from "./base";
+import FileTool from "./FileTool";
 
-export class SelectWorkspaceTool extends EnvTool {
-  description = "Select a workspace to work in";
-  schema = z.object({
-    workspaceId: z
-      .string()
-      .describe("Unique id of the workspace. Usually its folder name."),
-  });
-
-  protected async _call(
-    { workspaceId }: { workspaceId: string },
-    runManager?: CallbackManagerForToolRun
-  ): Promise<string> {
-    try {
-      this.env.workspaces.setCurrentWorkspaceId(workspaceId);
-      return `✅ Workspace "${workspaceId}" selected`;
-    } catch (error: any) {
-      throw new Error(`❌ Error selecting workspace: ${error.stack}`);
-    }
-  }
-}
-
-export class ListFilesTool extends FileTool {
+export default class ListFilesTool extends FileTool {
   description =
     "List files in the current workspace, respecting all .gitignore files in the ancestry and with a 500 file limit";
   schema = z.object({
