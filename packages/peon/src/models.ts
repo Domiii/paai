@@ -1,5 +1,6 @@
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatOpenAI } from "@langchain/openai";
+import { ChatOllama } from "@langchain/ollama";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 export interface ModelConfig {
@@ -11,6 +12,7 @@ export interface ModelConfig {
 enum Provider {
   OPENAI = "OPENAI",
   ANTHROPIC = "ANTHROPIC",
+  OLLAMA = "OLLAMA"
 }
 
 class ModelManager {
@@ -37,12 +39,15 @@ class ModelManager {
       return Provider.OPENAI;
     } else if (modelName.includes("claude")) {
       return Provider.ANTHROPIC;
+    } else if (modelName.includes("llama") || modelName.includes("yi:")) {
+      return Provider.OLLAMA;
     } else {
       throw new Error(`Unsupported model: ${modelName}`);
     }
   }
 
   private getApiKey(provider: Provider): string {
+    if (provider === Provider.OLLAMA) return ""; // Ollama doesn't need an API key
     const envVar = `PERSONAL_${provider}_API_KEY`;
     const apiKey = process.env[envVar];
     if (!apiKey) {
@@ -73,6 +78,13 @@ class ModelManager {
           temperature,
           maxTokens,
           anthropicApiKey: apiKey,
+        });
+        break;
+      case Provider.OLLAMA:
+        model = new ChatOllama({
+          baseUrl: "http://localhost:11434",
+          model: modelName || "yi:9b-chat",
+          temperature,
         });
         break;
     }

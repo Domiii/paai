@@ -31,5 +31,8 @@
   "packageManager": "yarn@4.5.0",
   "engines": {
     "node": "22.x"
+  },
+  "dependencies": {
+    "@langchain/ollama": "^0.2.0"
   }
 }
